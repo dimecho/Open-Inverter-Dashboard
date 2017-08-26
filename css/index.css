@@ -1,0 +1,41 @@
+html {
+  background-image: url(../img/carbon.png);
+  background-repeat: repeat; 
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  left: 0;
+  top: 0;
+  font-size: 100%;
+  overflow:hidden;
+}
+
+table {
+  width:100%;
+  table-layout: fixed;
+}
+
+.odometer{
+  display: table;
+  margin: 0 auto;
+}
+
+.svg-inject {
+  margin-left: 10px;
+  margin-right: 10px;
+  vertical-align: top;
+}
+.svg-grey * {
+  fill:#606060;
+}
+.svg-green * {
+  fill:#569e26;
+}
+.svg-yellow * {
+  fill:#efc411;
+}
+.svg-red * {
+  fill:#b52808;
+}

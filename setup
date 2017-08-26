@@ -1,0 +1,157 @@
+#!/bin/sh
+
+red=`tput setaf 1`
+green=`tput setaf 2`
+yellow=`tput setaf 3`
+reset=`tput sgr0`
+
+echo "${red}...Cleaning up${reset}"
+pkgs="
+wolfram-engine
+libreoffice*
+xpdf
+omxplayer
+claws-mail
+minecraft-pi
+sonic-pi
+"
+for i in $pkgs; do
+	sudo apt-get -y remove --purge $i
+done
+sudo apt-get clean
+sudo apt-get -y autoremove
+
+echo "${red}...Refreshing Package List${reset}"
+sudo apt-get update
+
+echo "${green}Upgrade Raspberry Pi? (y/n)${reset}"
+read yn
+if [ $yn = y ]; then
+	#============================
+    #Don't Update kernel (LCD driver requirement)
+	sudo apt-mark hold raspberrypi-bootloader
+	sudo apt-mark hold raspberrypi-kernel
+		#----------------------------
+		#System Updates
+		sudo apt-get -y upgrade
+		#----------------------------
+	sudo apt-mark unhold raspberrypi-bootloader
+	sudo apt-mark unhold raspberrypi-kernel
+	#============================
+fi
+
+echo "${red}...Installing TTY Tools${reset}"
+sudo apt-get -y install screen
+#https://github.com/aperepel/raspberrypi-ch340-driver
+
+
+echo "${red}...Installing Web Browser${reset}"
+sudo apt-get -y install chromium-browser
+#sudo aptitude install iceweasel -y
+
+echo "${red}...Installing Web Server${reset}"
+sudo apt-get install -y lighttpd
+sudo apt-get install -y php5-common php5-cgi php5
+sudo lighty-enable-mod fastcgi-php
+sudo service lighttpd force-reload
+#sudo apt-get install apache2 -y
+#sudo apt-get install php5 libapache2-mod-php5 -y
+
+echo "${red}...Setting Web Server Permissions${reset}"
+sudo chown www-data:www-data /var/www
+sudo chmod 755 /var/www
+sudo adduser www-data pi
+sudo adduser www-data dialout
+
+echo "${red}...Installing Web Files${reset}"
+htmlLocation="/var/www/html"
+if [ $(dirname "$0") != $htmlLocation ]; then
+	echo "...Installing HTML files to ${htmlLocation}"
+	cp -rf ./* $htmlLocation
+fi
+
+echo "${red}...Backing up config${reset}"
+configLocation="/boot/config.txt"
+if [ ! -f "${configLocation}.bak" ]; then
+    sudo cp "${configLocation}" "${configLocation}.bak"
+fi
+
+echo "${green}Auto-Start Full Screen Kiosk Mode? (y/n)${reset}"
+read yn
+if [ $yn = y ]; then
+	autostart="/home/pi/.config/lxsession/LXDE-pi/autostart"
+	sudo sh -c "sudo echo '#@xscreensaver -no-splash' > ${autostart}"
+	sudo sh -c "sudo echo '@xset -dpms # disable DPMS (Energy Star) features' >> ${autostart}"
+	sudo sh -c "sudo echo '@xset s off # disable screen saver' >> ${autostart}"
+	sudo sh -c "sudo echo '@xset s noblank # dont blank the video device' >> ${autostart}"
+	sudo sh -c "sudo echo 'chromium-browser --incognito --noerrdialogs --kiosk http://localhost' >> ${autostart}"
+ 	sudo chmod 755 $autostart
+else
+	sudo cp -f /etc/xdg/lxsession/LXDE-pi/autostart /home/pi/.config/lxsession/LXDE-pi/autostart
+fi
+
+echo "${green}Enable SSH? (y/n)${reset}"
+read yn
+if [ $yn = y ]; then
+	sudo /etc/init.d/ssh start
+	sudo update-rc.d ssh defaults
+fi
+
+echo "${green}Enable VNC? (y/n)${reset}"
+read yn
+if [ $yn = y ]; then
+	sudo vncinitconfig -service-daemon
+	sudo systemctl enable vncserver-x11-serviced.service
+	sudo systemctl start vncserver-x11-serviced.service
+fi
+
+kernel_version_current=`uname -a|awk '{print $3}'`
+kernel_version_needed="4.4.50-v7"
+if [ $kernel_version_current != $kernel_version_needed ]; then
+    echo "${yellow}Your kernel version is ${kernel_version_current}${reset}"
+    echo "${yellow}LCD works with kernel ${kernel_version_needed}${reset}"
+    echo "${red}...Installing kernel ${kernel_version_needed}${reset}"
+	sudo apt-get install rpi-update -y
+	sudo rpi-update 5224108
+	echo "${yellow}Please Reboot and re-run this setup!${reset}"
+	echo "${green}Reboot now? (y/n)${reset}"
+	read yn
+	if [ $yn = y ]; then
+		sudo reboot
+	fi
+	exit
+fi
+
+echo "${green}Build CH340 Driver for Kernel ${kernel_version_current}? (y/n)${reset}"
+echo "${yellow}Kernel sources are over 120MB download!${reset}"
+read yn
+if [ $yn = y ]; then
+	#cd /lib/modules/$(uname -r)/kernel/drivers/usb/serial
+	#sudo insmod ch34x.ko
+	sudo apt-get -y install linux-headers-rpi
+	sudo wget https://raw.githubusercontent.com/notro/rpi-source/master/rpi-source -O /usr/bin/rpi-source && sudo chmod +x /usr/bin/rpi-source && /usr/bin/rpi-source -q --tag-update
+	#sudo apt-get -y install gcc-4.8 g++-4.8
+	sudo apt-get -y install bc
+	sudo apt-get -y install libncurses5-dev
+	rpi-source --skip-gcc
+	
+	cd ./drivers/CH341SER_LINUX
+	make
+	make load
+fi
+
+echo "${green}Install LCD Drivers? (y/n)${reset}"
+cd /home/pi/Downloads
+read yn
+if [ $yn = y ]; then
+	if [ ! -f LCD_show_v6_1_3.tar.gz ]; then
+	    echo "${yellow}...Downloading LCD Driver${reset}"
+		wget http://kedei.net/raspberry/v6_1/LCD_show_v6_1_3.tar.gz
+	fi
+    echo "${yellow}...Extracting TAR${reset}"
+	tar -xzvf LCD_show_v6_1_3.tar.gz
+	
+	echo "${red}...Switching to LCD${reset}"
+    cd LCD_show_v6_1_3
+	sudo ./LCD35_v
+fi
