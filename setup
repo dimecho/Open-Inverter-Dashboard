@@ -14,6 +14,8 @@ omxplayer
 claws-mail
 minecraft-pi
 sonic-pi
+scratch
+scratch2
 "
 for i in $pkgs; do
 	sudo apt-get -y remove --purge $i
@@ -40,11 +42,6 @@ if [ $yn = y ]; then
 	#============================
 fi
 
-echo "${red}...Installing TTY Tools${reset}"
-sudo apt-get -y install screen
-#https://github.com/aperepel/raspberrypi-ch340-driver
-
-
 echo "${red}...Installing Web Browser${reset}"
 sudo apt-get -y install chromium-browser
 #sudo aptitude install iceweasel -y
@@ -61,7 +58,13 @@ echo "${red}...Setting Web Server Permissions${reset}"
 sudo chown www-data:www-data /var/www
 sudo chmod 755 /var/www
 sudo adduser www-data pi
-sudo adduser www-data dialout
+
+echo "${red}...Setting TTY Permissions${reset}"
+#UART on the Pi-3 you will need to disable bluetooth
+ls -la /dev/ttyAMA0
+#sudo chmod 660 /dev/ttyAMA0
+sudo systemctl mask serial-getty@ttyAMA0.service
+sudo usermod -a -G dialout www-data
 
 echo "${red}...Installing Web Files${reset}"
 htmlLocation="/var/www/html"
@@ -75,16 +78,18 @@ configLocation="/boot/config.txt"
 if [ ! -f "${configLocation}.bak" ]; then
     sudo cp "${configLocation}" "${configLocation}.bak"
 fi
+#enable_uart=1
 
 echo "${green}Auto-Start Full Screen Kiosk Mode? (y/n)${reset}"
 read yn
 if [ $yn = y ]; then
+	sudo apt-get install x11-xserver-utils
 	autostart="/home/pi/.config/lxsession/LXDE-pi/autostart"
 	sudo sh -c "sudo echo '#@xscreensaver -no-splash' > ${autostart}"
 	sudo sh -c "sudo echo '@xset -dpms # disable DPMS (Energy Star) features' >> ${autostart}"
 	sudo sh -c "sudo echo '@xset s off # disable screen saver' >> ${autostart}"
 	sudo sh -c "sudo echo '@xset s noblank # dont blank the video device' >> ${autostart}"
-	sudo sh -c "sudo echo 'chromium-browser --incognito --noerrdialogs --kiosk http://localhost' >> ${autostart}"
+	sudo sh -c "sudo echo 'chromium-browser --noerrdialogs --kiosk http://localhost --incognito' >> ${autostart}"
  	sudo chmod 755 $autostart
 else
 	sudo cp -f /etc/xdg/lxsession/LXDE-pi/autostart /home/pi/.config/lxsession/LXDE-pi/autostart
@@ -113,15 +118,10 @@ if [ $kernel_version_current != $kernel_version_needed ]; then
     echo "${red}...Installing kernel ${kernel_version_needed}${reset}"
 	sudo apt-get install rpi-update -y
 	sudo rpi-update 5224108
-	echo "${yellow}Please Reboot and re-run this setup!${reset}"
-	echo "${green}Reboot now? (y/n)${reset}"
-	read yn
-	if [ $yn = y ]; then
-		sudo reboot
-	fi
-	exit
 fi
 
+#https://github.com/aperepel/raspberrypi-ch340-driver
+: '
 echo "${green}Build CH340 Driver for Kernel ${kernel_version_current}? (y/n)${reset}"
 echo "${yellow}Kernel sources are over 120MB download!${reset}"
 read yn
@@ -134,11 +134,11 @@ if [ $yn = y ]; then
 	sudo apt-get -y install bc
 	sudo apt-get -y install libncurses5-dev
 	rpi-source --skip-gcc
-	
 	cd ./drivers/CH341SER_LINUX
 	make
 	make load
 fi
+'
 
 echo "${green}Install LCD Drivers? (y/n)${reset}"
 cd /home/pi/Downloads
@@ -154,4 +154,10 @@ if [ $yn = y ]; then
 	echo "${red}...Switching to LCD${reset}"
     cd LCD_show_v6_1_3
 	sudo ./LCD35_v
+fi
+
+echo "${green}Reboot now? (y/n)${reset}"
+read yn
+if [ $yn = y ]; then
+	sudo reboot
 fi

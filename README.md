@@ -2,7 +2,7 @@
 <img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/icon.png">
 </p>
 
-# Hubner Inverter Raspberry Dash
+# Hubner Inverter - Raspberry Dash
 
 This is a Raspberry Pi Dashboard designed for Huebner [Inverter Project](http://johanneshuebner.com/quickcms/index.html%3Fde_electric-car-conversion-site,14.html)
 
@@ -16,7 +16,6 @@ This is a Raspberry Pi Dashboard designed for Huebner [Inverter Project](http://
 * microSD card (4GB+)
 * LCD screen (SPI)
 * 5V power (microUSB)
-* USB-TTL adapter
 
 ### Prerequisites (Computer)
 
@@ -36,8 +35,11 @@ chmod +x setup
 
 ### Connecting Inverter
 
-* Plug USB-TTL adapter to Raspberry Pi
-* Connect TTL RX/TX into Inverter board (3.3V only - do not plug 5V)
+* Connect Inverter CPU to Raspberry Pi directly without USB-TTL converter
+
+<p align="center">
+<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/connect.jpg">
+</p>
 
 ## Author
 

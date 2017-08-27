@@ -1,16 +1,23 @@
 <?php
+    // Enable debugging
+    error_reporting(E_ALL);
+    ini_set('display_errors', true);
+
     set_time_limit(30);
 	
-	$com = "/dev/ttyUSB0";
-    /*
-	exec("stty -f " .$com);
-	exec("stty -f " .$com. " 115200");
-	exec("stty -f " .$com. " -parenb");
-	exec("stty -f " .$com. " cs8");
-	exec("stty -f " .$com. " cstopb");
-	exec("stty -f " .$com. " clocal -crtscts -ixon -ixoff");
-    */
-    exec("screen " .$com. " 115200");
+    $com = "/dev/ttyAMA0";
+    //$com = "/dev/ttyUSB0";
+    
+    if(!isset($_SESSION["serial"])) {
+    	exec("stty -F " .$com. " 115200");
+    	exec("stty -F " .$com. " -parenb");
+    	exec("stty -F " .$com. " cs8");
+    	exec("stty -F " .$com. " cstopb");
+    	exec("stty -F " .$com. " clocal -crtscts -ixon -ixoff");
+        $_SESSION["serial"] = 1;
+    }
+    
+    echo readSerial("hello");
 	
 	if(isset($_GET["get"]))
 	{
@@ -42,7 +49,7 @@
 		$read = "";
         $arr = array();
 		
-		$uart = fopen(serialDevice(), "rb+"); //Read & Write
+		$uart = fopen($GLOBALS["com"], "rb+"); //Read & Write
         stream_set_blocking($uart, 1); //O_NONBLOCK
         stream_set_timeout($uart, 8);
         
@@ -77,7 +84,7 @@
 		$cmd = urldecode($cmd). "\r";
         $read = "";
 
-		$uart = fopen(serialDevice(), "rb+"); //Read & Write
+		$uart = fopen($GLOBALS["com"], "rb+"); //Read & Write
         stream_set_blocking($uart, 1); //O_NONBLOCK
         stream_set_timeout($uart, 8);
         
