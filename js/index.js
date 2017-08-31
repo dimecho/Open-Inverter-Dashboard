@@ -1,8 +1,9 @@
 var odo;
 
-document.addEventListener("DOMContentLoaded", function(event) {
-
-    loadJSON("views/dashboard-1.json",
+window.addEventListener('load', function()
+{
+	
+    loadAJAX("views/1.json",
         function(data) {
             //console.log(data);
 
@@ -48,18 +49,19 @@ document.addEventListener("DOMContentLoaded", function(event) {
             for (i in data.alerts)
             {
                 //console.log(data.alerts[i].svg);
-                var span = document.createElement("span");
-                var img = document.createElement("img");
-                img.classList.add("svg-inject");
-                img.classList.add("svg-grey");
-                img.style.cssText = "width:" + getWidth()/12 + "px;height:" + getWidth()/12 + "px";
-                img.src = "img/" + data.alerts[i].id;
+                
+                var svg = document.createElement("svg");
+                svg.classList.add("svg-inject");
+                svg.classList.add("svg-grey");
+                svg.style.width = getWidth()/12 + "px";
+                svg.style.height = getWidth()/12 + "px";
+                svg.setAttribute("data-src", "img/" + data.alerts[i].id);
+                //svg.setAttribute("data-fallback", "img/" + data.alerts[i].id + ".png");
+                td.appendChild(svg);
 
-                SVGInjector(img);
-
-                span.appendChild(img);
-                td.appendChild(span);
+                new SVGInjector().inject(svg);
             }
+
             tr.appendChild(td);
             table.appendChild(tr);
             front[0].appendChild(table);
@@ -79,28 +81,76 @@ document.addEventListener("DOMContentLoaded", function(event) {
                 //updateOdometer(data.odometer.count);
             }
 
-            for (i in data.sounds)
-            {
-                if(data.sounds[i].run)
-                {
-                    xhr.open("GET", "sounds/" + data.sounds[i].id, true);
-                    xhr.responseType = "arraybuffer";
-                    xhr.onload = function(e){
-                        window.addEventListener("keydown", createPitchStep(data.sounds[i].pitchStep))
-                        window.addEventListener("keyup", createPitchStep(-data.sounds[i].pitchStep))
-                        engineStart(this.response);
-                    };
-                    xhr.send();
-
-                    break;
-                }
-            }
+			if(data.sounds)
+			{
+				xhr.open("GET", "sounds/" + data.sounds[i].id, true);
+				xhr.responseType = "arraybuffer";
+				xhr.onload = function(e){
+					window.addEventListener("keydown", createPitchStep(data.sounds[i].pitchStep))
+					window.addEventListener("keyup", createPitchStep(-data.sounds[i].pitchStep))
+					engineStart(this.response);
+				};
+				xhr.send();
+			}
         },
         function(xhr) { console.error(xhr); }
     );
+	
+	
+	streamAJAX("serial.php?stream=udc");
+
+	document.gauges.forEach(function(gauge)
+	{
+		setInterval(function() { gauge.value = 20; }, 200);
+		/*
+		setInterval(function()
+		{
+			switch (gauge.options.renderTo.id)
+			{
+			case "speed":
+				gauge.value = "111";
+				break;
+			case "rpm":
+				gauge.value = data_val2;
+				break;
+			}
+		}, 200);
+		*/
+	});
 });
 
-function loadJSON(path, success, error)
+function streamAJAX(path)
+{
+	var xhr = new XMLHttpRequest();
+	var _alert = document.getElementsByClassName("alert");
+	xhr.onreadystatechange = function()
+	{
+		//console.log("State change: "+ xhr.readyState);
+		if(xhr.readyState == 3) {
+			var newData = xhr.response.substr(xhr.seenBytes);
+			if(newData !== "Unknown command sequence")
+			{
+				console.log(newData);
+			}
+			xhr.seenBytes = xhr.responseText.length;
+			//console.log("seenBytes: " +xhr.seenBytes);
+			_alert.style.display = "none";
+		}else if (xhr.readyState == 4) {
+			//console.log("Complete");
+			//console.log(xhr.responseText);
+			_alert.innerHTML = "Connection Lost";
+			_alert.style.display = "block";
+		}
+	};
+	xhr.addEventListener("error", function(e) {
+	  console.log("error: " +e);
+	});
+	
+	xhr.open('GET', path, true);
+	xhr.send();
+};
+
+function loadAJAX(path, success, error)
 {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function()
@@ -108,7 +158,11 @@ function loadJSON(path, success, error)
         if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
                 if (success)
-                    success(JSON.parse(xhr.responseText));
+					if(path.indexOf(".json") !== -1) {
+						success(JSON.parse(xhr.responseText));
+					}else{
+						success(xhr.responseText);
+					}
             } else {
                 if (error)
                     error(xhr);
@@ -137,24 +191,6 @@ function getHeight() {
     document.documentElement.offsetHeight,
     document.documentElement.clientHeight
   );
-};
-
-function CANRead(value) {
-
-   var xmlhttp = new XMLHttpRequest();
-
-    xmlhttp.onreadystatechange = function() {
-        if (xmlhttp.readyState == XMLHttpRequest.DONE ) {
-           if (xmlhttp.status == 200) {
-               return xmlhttp.responseText;
-           }else{
-                return xmlhttp.status;
-           }
-        }
-    };
-
-    xmlhttp.open("GET", "can.php", true);
-    xmlhttp.send();
 };
 
 function updateOdometer(n) {

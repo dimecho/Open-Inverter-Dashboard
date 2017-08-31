@@ -1,9 +1,9 @@
 <?php
-    // Enable debugging
+	//session_start();
+	set_time_limit(10000);
+	
     error_reporting(E_ALL);
     ini_set('display_errors', true);
-
-    set_time_limit(30);
 	
     $com = "/dev/ttyAMA0";
     //$com = "/dev/ttyUSB0";
@@ -16,10 +16,12 @@
     	exec("stty -F " .$com. " clocal -crtscts -ixon -ixoff");
         $_SESSION["serial"] = 1;
     }
-    
-    echo readSerial("hello");
 	
-	if(isset($_GET["get"]))
+	if(isset($_GET["phpinfo"]))
+	{
+		phpinfo();
+	}
+	else if(isset($_GET["get"]))
 	{
 		if(strpos($_GET["get"],",") !== false) //Multi-value support
 		{
@@ -29,6 +31,20 @@
 		}else{
 			echo readSerial("get " .$_GET["get"]);
 		}
+	}
+	else if(isset($_GET["stream"]))
+	{
+		//ini_set('zlib.output_compression', 0);
+		//ini_set('output_buffering', 0);
+		
+		header('Content-Type: text/plain; charset=utf-8');
+		
+		ob_end_flush();
+		for ($i = 0; $i<10; $i++){
+			echo readSerial("get " .$_GET["stream"]); 
+			sleep(1);
+		}
+		ob_start();
 	}
 	else if(isset($_GET["command"]))
 	{
@@ -43,100 +59,30 @@
 		echo calculateMedian(readArray($_GET["median"],3));
 	}
     
-	function readArray($cmd,$n)
-    {
-		$cmd = "get " .urldecode($cmd). "\r";
-		$read = "";
-        $arr = array();
-		
-		$uart = fopen($GLOBALS["com"], "rb+"); //Read & Write
-        stream_set_blocking($uart, 1); //O_NONBLOCK
-        stream_set_timeout($uart, 8);
-        
-		fwrite($uart, $cmd);
-		while($read .= fread($uart, 1))
-		{
-			if(strpos($read,$cmd) !== false) //Reached end of echo
-			{
-				for ($x = 0; $x <= $n; $x++)
-				{
-                    $read = "";
-
-					fwrite($uart, "!");
-					fread($uart, 1); //Remove echo
-					
-					while($read .= fread($uart, 1))
-						if(strpos($read,"\n") !== false)
-							break;
-
-                    array_push($arr, (float)$read);
-				}
-				break;
-			}
-		}
-		fclose($uart);
-
-		return $arr;
-    }
-	
     function readSerial($cmd)
     {
-		$cmd = urldecode($cmd). "\r";
-        $read = "";
-
-		$uart = fopen($GLOBALS["com"], "rb+"); //Read & Write
-        stream_set_blocking($uart, 1); //O_NONBLOCK
-        stream_set_timeout($uart, 8);
-        
+		$cmd = urldecode($cmd). "\n";
+		$uart = fopen($GLOBALS["com"], "r+"); //Read & Write
+		
 		fwrite($uart, $cmd);
         
-        while($read .= fread($uart, 1)) //stream_get_contents($uart)
+		$read = "";
+		while($read .= fread($uart, 1)) //stream_get_contents($uart)
         {
             if(strpos($read,$cmd) !== false) //Reached end of echo
             {
-                //Continue reading
                 $read = "";
-                if($cmd === "json\r"){
-                    do {
-                        $read .= fread($uart, 1);
-                        json_decode($read);
-                    } while (json_last_error() != JSON_ERROR_NONE);
-                }else if($cmd === "all\r"){
-                    while($read.= fread($uart, 1))
-                        if(strpos($read,"tm_meas") !== false)
-                            break;
-                    $read .= "\t\t59652322";
-                //OSX has trouble reading sequencial command
-                /*
-                }else if(strpos($cmd,",") !== false){ //Multi-value support
-                    $split = explode(",",$cmd);
-                    for ($x = 0; $x < count($split); $x++) {
-                        $r = "";
-                        while($r .= fread($uart, 1))
-                            if(strpos($r,"\n") !== false)
-                                break;
-                        $read .= $r;
-                    }
-                */
                 //TODO: command=errors
-                }else{
-                    while($read .= fread($uart, 1))
-                        if(strpos($read,"\n") !== false)
-                            break;
-                }
-                $read = rtrim($read ,"\r");
+           
+				while($read .= fread($uart, 1))
+					if(strpos($read,"\n") !== false)
+						break;
                 $read = rtrim($read ,"\n");
                 break;
             }
-        }
-        
-		//$read = fgets($uart);
-		//while(!feof($uart)){
-			//$read .= stream_get_contents($fd, 1);
-			//$read .= fgets($uart);
-		//}
+		}
+		
 		fclose($uart);
-
         return $read;
     }
 

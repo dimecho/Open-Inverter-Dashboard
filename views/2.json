@@ -267,13 +267,8 @@
         "id": "emergency.svg",
         "color": "svg-orange"
     }],
-    "sounds": [{
+    "sounds": {
         "id": "deepengine.mp3",
         "pitchStep": 0.2,
-        "run": false
-    }, {
-        "id": "deepengine.mp3",
-        "pitchStep": 0.2,
-        "run": false
-    }]
+    }
 }

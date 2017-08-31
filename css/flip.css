@@ -11,7 +11,6 @@ label {
     top: 50%;
     -webkit-transform: translate(-50%, -50%);
     transform: translate(-50%, -50%);
-    cursor: none;
 }
 
 .card {
@@ -39,6 +38,7 @@ label {
 	-webkit-backface-visibility: hidden;
 	backface-visibility: hidden;
 	border-radius: 2px;
+	cursor: none;
 }
 
 .card .back {
@@ -46,7 +46,7 @@ label {
 	color: #FFF;
 	-webkit-transform: rotateX(180deg);
 	transform: rotateX(180deg);
-    cursor: auto;
+    cursor: pointer;
 }
 
 input {

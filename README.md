@@ -38,7 +38,7 @@ chmod +x setup
 * Connect Inverter CPU to Raspberry Pi directly without USB-TTL converter
 
 <p align="center">
-<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/connect.jpg">
+<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/connect.png">
 </p>
 
 ## Author

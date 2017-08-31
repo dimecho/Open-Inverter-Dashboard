@@ -47,12 +47,14 @@ sudo apt-get -y install chromium-browser
 #sudo aptitude install iceweasel -y
 
 echo "${red}...Installing Web Server${reset}"
-sudo apt-get install -y lighttpd
 sudo apt-get install -y php5-common php5-cgi php5
+:'
+sudo apt-get -y install lighttpd
 sudo lighty-enable-mod fastcgi-php
 sudo service lighttpd force-reload
-#sudo apt-get install apache2 -y
-#sudo apt-get install php5 libapache2-mod-php5 -y
+#sudo apt-get -y install apache2
+#sudo apt-get -y install libapache2-mod-php5
+'
 
 echo "${red}...Setting Web Server Permissions${reset}"
 sudo chown www-data:www-data /var/www
@@ -62,7 +64,6 @@ sudo adduser www-data pi
 echo "${red}...Setting TTY Permissions${reset}"
 #UART on the Pi-3 you will need to disable bluetooth
 ls -la /dev/ttyAMA0
-#sudo chmod 660 /dev/ttyAMA0
 sudo systemctl mask serial-getty@ttyAMA0.service
 sudo usermod -a -G dialout www-data
 
@@ -89,8 +90,13 @@ if [ $yn = y ]; then
 	sudo sh -c "sudo echo '@xset -dpms # disable DPMS (Energy Star) features' >> ${autostart}"
 	sudo sh -c "sudo echo '@xset s off # disable screen saver' >> ${autostart}"
 	sudo sh -c "sudo echo '@xset s noblank # dont blank the video device' >> ${autostart}"
-	sudo sh -c "sudo echo 'chromium-browser --noerrdialogs --kiosk http://localhost --incognito' >> ${autostart}"
+	sudo sh -c "sudo echo 'chromium-browser --noerrdialogs --kiosk http://127.0.0.1:8080 --incognito' >> ${autostart}"
  	sudo chmod 755 $autostart
+	rclocal="/etc/rc.local"
+	sudo sh -c "sudo echo '#!/bin/sh -e' > ${rclocal}"
+	sudo sh -c "sudo echo 'sudo -u www-data php -S 0.0.0.0:8080 -t /var/www/html/ &' >> ${rclocal}"
+	sudo sh -c "sudo echo 'exit 0' >> ${rclocal}"
+	sudo chmod 755 $rclocal
 else
 	sudo cp -f /etc/xdg/lxsession/LXDE-pi/autostart /home/pi/.config/lxsession/LXDE-pi/autostart
 fi
@@ -112,38 +118,40 @@ fi
 
 kernel_version_current=`uname -a|awk '{print $3}'`
 kernel_version_needed="4.4.50-v7"
-if [ $kernel_version_current != $kernel_version_needed ]; then
-    echo "${yellow}Your kernel version is ${kernel_version_current}${reset}"
-    echo "${yellow}LCD works with kernel ${kernel_version_needed}${reset}"
-    echo "${red}...Installing kernel ${kernel_version_needed}${reset}"
-	sudo apt-get install rpi-update -y
-	sudo rpi-update 5224108
-fi
 
-#https://github.com/aperepel/raspberrypi-ch340-driver
-: '
-echo "${green}Build CH340 Driver for Kernel ${kernel_version_current}? (y/n)${reset}"
-echo "${yellow}Kernel sources are over 120MB download!${reset}"
+echo "${green}Install CH340 Driver for Kernel ${kernel_version_needed}? (y/n)${reset}"
 read yn
 if [ $yn = y ]; then
 	#cd /lib/modules/$(uname -r)/kernel/drivers/usb/serial
-	#sudo insmod ch34x.ko
+	sudo cp -f ./drivers/ch34x.ko "/lib/modules/${kernel_version_needed}/kernel/drivers/usb/serial"
+	sudo modprobe ./drivers/ch34x.ko
+	:'
+	#https://github.com/aperepel/raspberrypi-ch340-driver
+	sudo apt-get -y install gcc-4.8 g++-4.8
+	sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 50
+	sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 50
 	sudo apt-get -y install linux-headers-rpi
 	sudo wget https://raw.githubusercontent.com/notro/rpi-source/master/rpi-source -O /usr/bin/rpi-source && sudo chmod +x /usr/bin/rpi-source && /usr/bin/rpi-source -q --tag-update
-	#sudo apt-get -y install gcc-4.8 g++-4.8
 	sudo apt-get -y install bc
 	sudo apt-get -y install libncurses5-dev
-	rpi-source --skip-gcc
-	cd ./drivers/CH341SER_LINUX
+	rpi-source
+	cd ./drivers
 	make
 	make load
+	'
 fi
-'
 
-echo "${green}Install LCD Drivers? (y/n)${reset}"
+echo "${green}Install LCD Driver? (y/n)${reset}"
 cd /home/pi/Downloads
 read yn
 if [ $yn = y ]; then
+	if [ $kernel_version_current != $kernel_version_needed ]; then
+	    echo "${yellow}Your kernel version is ${kernel_version_current}${reset}"
+	    echo "${yellow}LCD works with kernel ${kernel_version_needed}${reset}"
+	    echo "${red}...Installing kernel ${kernel_version_needed}${reset}"
+		sudo apt-get install rpi-update -y
+		sudo rpi-update 5224108
+	fi
 	if [ ! -f LCD_show_v6_1_3.tar.gz ]; then
 	    echo "${yellow}...Downloading LCD Driver${reset}"
 		wget http://kedei.net/raspberry/v6_1/LCD_show_v6_1_3.tar.gz
