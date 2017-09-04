@@ -63,6 +63,7 @@ sudo adduser www-data pi
 
 echo "${red}...Setting TTY Permissions${reset}"
 #UART on the Pi-3 you will need to disable bluetooth
+#enable_uart=1
 ls -la /dev/ttyAMA0
 sudo systemctl mask serial-getty@ttyAMA0.service
 sudo usermod -a -G dialout www-data
@@ -79,7 +80,6 @@ configLocation="/boot/config.txt"
 if [ ! -f "${configLocation}.bak" ]; then
     sudo cp "${configLocation}" "${configLocation}.bak"
 fi
-#enable_uart=1
 
 echo "${green}Auto-Start Full Screen Kiosk Mode? (y/n)${reset}"
 read yn
@@ -141,8 +141,51 @@ if [ $yn = y ]; then
 	'
 fi
 
-echo "${green}Install LCD Driver? (y/n)${reset}"
-cd /home/pi/Downloads
+echo "${green}Install RFID Drivers? (y/n)${reset}"
+cd ~/Downloads
+read yn
+if [ $yn = y ]; then
+	wget http://www.airspayce.com/mikem/bcm2835/bcm2835-1.52.tar.gz
+	tar zxvf bcm2835-1.52.tar.gz
+	cd bcm2835-1.52
+	./configure
+	make
+	sudo make check
+	sudo make install
+
+	git clone https://github.com/paguz/RPi-RFID
+	cd RPi-RFID
+	g++ MFRC522.cpp Read.cpp -std=c++11 -lbcm2835
+	:'
+	+ ---------------- + ------- + ------------ +
+	| Name/Signal      | MFRC522 | Raspberry Pi |
+	+ ================ + ======= + ============ +
+	| VCC              | 3,3V    | 1 (3V3)      |
+	+ ---------------- + ------- + ------------ +
+	| RST/Reset        | RST     | 22 (GPIO25)  |
+	+ ---------------- + ------- + ------------ +
+	| GND              | GND     | Any ground   |
+	+ ---------------- + ------- + ------------ +
+	| SPI MISO         | MISO    | 21 (GPIO9)   |
+	+ ---------------- + ------- + ------------ +
+	| SPI MOSI         | MOSI    | 19 (GPIO10)  |
+	+ ---------------- + ------- + ------------ +
+	| SPI SCK          | SCK     | 23 (GPIO11)  |
+	+ ---------------- + ------- + ------------ +
+	| SPI SS (SOA/NSS) | SDA     | 24 (GPIO8)   |
+	+ ---------------- + ------- + ------------ +
+	| IRQ              | IRQ     | None         |
+	+ ---------------- + ------- + ------------ +
+	MISO = Master Input, Slave Output
+	MOSI = Master Output, Slave Input
+	'
+	
+	#dtparam=spi=on
+	#dtoverlay=spi0-hw-cs
+fi
+
+echo "${green}Install LCD Drivers? (y/n)${reset}"
+cd ~/Downloads
 read yn
 if [ $yn = y ]; then
 	if [ $kernel_version_current != $kernel_version_needed ]; then

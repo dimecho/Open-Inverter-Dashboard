@@ -41,7 +41,7 @@
         "needleCircleSize": 7,
         "needleCircleOuter": true,
         "needleCircleInner": false,
-        "animationDuration": 1500,
+        "animationDuration": 1000,
         "animationRule": "linear",
         "colorMajorTicks": "#ddd",
         "colorMinorTicks": "#ddd",
@@ -104,7 +104,7 @@
         "needleCircleSize": 7,
         "needleCircleOuter": true,
         "needleCircleInner": false,
-        "animationDuration": 1500,
+        "animationDuration": 1000,
         "valueBoxBorderRadius": 0,
         "animationRule": "linear",
         "colorMajorTicks": "#ddd",
@@ -128,16 +128,13 @@
         "colorValueBoxRectEnd": "#333"
     }],
     "alerts": [{
-        "id": "high-beam.svg",
-        "color": "svg-orange"
-    }, {
-        "id": "temp.svg",
-        "color": "svg-orange"
-    }, {
-        "id": "battery.svg",
-        "color": "svg-orange"
-    }, {
-        "id": "emergency.svg",
+        "id": "battery",
+        "color": "svg-green"
+    },{
+        "id": "temp",
+        "color": "svg-red"
+    },{
+        "id": "emergency",
         "color": "svg-orange"
     }]
 }

@@ -39,6 +39,7 @@ chmod +x setup
 
 <p align="center">
 <img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/connect.png">
+<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/pi2_gpio.png">
 </p>
 
 ## Author

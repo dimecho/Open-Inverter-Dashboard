@@ -1,11 +1,16 @@
 var odo;
+var blink_emergency;
+var blink_battery;
 
-window.addEventListener('load', function()
+//window.addEventListener('load', function()
+document.addEventListener("DOMContentLoaded", function(event)
 {
-	
     loadAJAX("views/1.json",
-        function(data) {
+
+        function(data)
+        {
             //console.log(data);
+            var stream = "din_emcystop,din_ocur";
 
             var front = document.getElementsByClassName("front");
             var table = document.createElement("table");
@@ -14,6 +19,15 @@ window.addEventListener('load', function()
             for (i in data.dashboard)
             {
                 console.log(data.dashboard[i].renderTo);
+
+                switch (data.dashboard[i].renderTo) {
+                    case "battery":
+                    stream += ",udc";
+                    break;
+                case "speed":
+                    stream += ",rpm";
+                    break;
+                }
 
                 var td = document.createElement("td");
                 var canvas = document.createElement("canvas");
@@ -51,11 +65,13 @@ window.addEventListener('load', function()
                 //console.log(data.alerts[i].svg);
                 
                 var svg = document.createElement("svg");
+                svg.id = data.alerts[i].id;
+                svg.dataset.color = data.alerts[i].color;
                 svg.classList.add("svg-inject");
                 svg.classList.add("svg-grey");
                 svg.style.width = getWidth()/12 + "px";
                 svg.style.height = getWidth()/12 + "px";
-                svg.setAttribute("data-src", "img/" + data.alerts[i].id);
+                svg.setAttribute("data-src", "img/" + data.alerts[i].id + ".svg");
                 //svg.setAttribute("data-fallback", "img/" + data.alerts[i].id + ".png");
                 td.appendChild(svg);
 
@@ -92,31 +108,36 @@ window.addEventListener('load', function()
 				};
 				xhr.send();
 			}
+
+            var array = ["1","2","3"];
+            var back = document.getElementsByClassName("back");
+            var div = document.createElement("div");
+            var select = document.createElement("select");
+            div.appendChild(select);
+            back[0].appendChild(div);
+
+            for (var i = 0; i < array.length; i++) {
+                var option = document.createElement("option");
+                option.value = array[i];
+                option.text = "Dashboard " + array[i];
+                select.appendChild(option);
+            }
+
+            document.gauges.forEach(function(gauge)
+            {
+                //console.log(gauge);
+
+                gauge.value = gauge.options.maxValue;
+                setTimeout(function()
+                {
+                    gauge.value = gauge.options.minValue;
+                    //streamAJAX(stream);
+                    
+                }, gauge.options.animationDuration*1.5);
+            });
         },
         function(xhr) { console.error(xhr); }
     );
-	
-	
-	streamAJAX("serial.php?stream=udc");
-
-	document.gauges.forEach(function(gauge)
-	{
-		setInterval(function() { gauge.value = 20; }, 200);
-		/*
-		setInterval(function()
-		{
-			switch (gauge.options.renderTo.id)
-			{
-			case "speed":
-				gauge.value = "111";
-				break;
-			case "rpm":
-				gauge.value = data_val2;
-				break;
-			}
-		}, 200);
-		*/
-	});
 });
 
 function streamAJAX(path)
@@ -131,6 +152,30 @@ function streamAJAX(path)
 			if(newData !== "Unknown command sequence")
 			{
 				console.log(newData);
+                
+                /*
+                blink_emergency = setInterval(function() 
+                {
+                    var svg = document.getElementById("emergency");
+
+                    if(svg.className.baseVal.indexOf(svg.dataset.color) !== -1) {
+                        svg.classList.remove("svg-orange");
+                        svg.classList.add("svg-grey");
+                    }else{
+                        svg.classList.remove("svg-grey");
+                        svg.classList.add("svg-orange");
+                    }
+                    new SVGInjector().inject(svg);
+                }, 1000);
+                clearInterval(blink_emergency);
+                */
+
+                /*
+                var svg = document.getElementById("battery");
+                svg.classList.add(svg.dataset.color);
+                new SVGInjector().inject(svg);
+                */
+
 			}
 			xhr.seenBytes = xhr.responseText.length;
 			//console.log("seenBytes: " +xhr.seenBytes);
@@ -146,7 +191,7 @@ function streamAJAX(path)
 	  console.log("error: " +e);
 	});
 	
-	xhr.open('GET', path, true);
+	xhr.open('GET', "serial.php?stream=" + path, true);
 	xhr.send();
 };
 

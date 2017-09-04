@@ -5,8 +5,11 @@
     error_reporting(E_ALL);
     ini_set('display_errors', true);
 	
-    $com = "/dev/ttyAMA0";
-    //$com = "/dev/ttyUSB0";
+    $com = "/dev/ttyUSB0";
+
+    if (!file_exists($com)) {
+        $com = "/dev/ttyAMA0";
+    }
     
     if(!isset($_SESSION["serial"])) {
     	exec("stty -F " .$com. " 115200");

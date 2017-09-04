@@ -255,16 +255,16 @@
         "colorOff": "#1b4105"
     },
     "alerts": [{
-        "id": "high-beam.svg",
+        "id": "high-beam",
         "color": "svg-orange"
     }, {
-        "id": "temp.svg",
+        "id": "temp",
         "color": "svg-orange"
     }, {
-        "id": "battery.svg",
+        "id": "battery",
         "color": "svg-orange"
     }, {
-        "id": "emergency.svg",
+        "id": "emergency",
         "color": "svg-orange"
     }],
     "sounds": {
