@@ -1,18 +1,3 @@
-label {
-    -webkit-perspective: 1000px;
-    perspective: 1000px;
-    -webkit-transform-style: preserve-3d;
-    transform-style: preserve-3d;
-    display: block;
-    height: 100%;
-    width: 100%;
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    -webkit-transform: translate(-50%, -50%);
-    transform: translate(-50%, -50%);
-}
-
 .card {
     position: relative;
     height: 100%;
@@ -21,7 +6,6 @@ label {
     transform-style: preserve-3d;
     -webkit-transition: all 1500ms;
     transition: all 1500ms;
-    z-index: 20;
     margin: 0;
     padding: 0;
 }
@@ -38,7 +22,10 @@ label {
 	-webkit-backface-visibility: hidden;
 	backface-visibility: hidden;
 	border-radius: 2px;
-	cursor: none;
+}
+
+.card .front {
+    cursor: none;
 }
 
 .card .back {
@@ -56,6 +43,23 @@ input {
 :checked + .card {
     transform: rotateX(180deg);
     -webkit-transform: rotateX(180deg);
+}
+
+label {
+    -webkit-perspective: 1000px;
+    perspective: 1000px;
+    -webkit-transform-style: preserve-3d;
+    transform-style: preserve-3d;
+    display: block;
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    /*
+    left: 50%;
+    top: 50%;
+    -webkit-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+    */
 }
 
 /*

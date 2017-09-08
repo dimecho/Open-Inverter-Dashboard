@@ -16,25 +16,38 @@ document.addEventListener("DOMContentLoaded", function(event)
             var table = document.createElement("table");
             var tr = document.createElement("tr");
 
+            var dashboardVisible = [];
+            var dashboardHidden = [];
+
             for (i in data.dashboard)
             {
-                console.log(data.dashboard[i].renderTo);
+                data.dashboard[i].width = getWidth() * data.dashboard[i].width;
+                data.dashboard[i].height = getHeight() * data.dashboard[i].height;
 
-                switch (data.dashboard[i].renderTo) {
-                    case "battery":
-                    stream += ",udc";
-                    break;
-                case "speed":
-                    stream += ",rpm";
-                    break;
+                if(data.dashboard[i].show)
+                {
+                    console.log(data.dashboard[i].renderTo);
+
+                    switch (data.dashboard[i].renderTo) {
+                        case "battery":
+                        stream += ",udc";
+                        break;
+                    case "speed":
+                        stream += ",rpm";
+                        break;
+                    }
+
+                    var td = document.createElement("td");
+                    var canvas = document.createElement("canvas");
+                    //canvas.style.cssText = "vertical-align: top";
+                    canvas.setAttribute("id", data.dashboard[i].renderTo);
+                    td.appendChild(canvas);
+                    tr.appendChild(td);
+
+                    dashboardVisible.push(data.dashboard[i]);
+                }else{
+                    dashboardHidden.push(data.dashboard[i]);
                 }
-
-                var td = document.createElement("td");
-                var canvas = document.createElement("canvas");
-                //canvas.style.cssText = "vertical-align: top";
-                canvas.setAttribute("id", data.dashboard[i].renderTo);
-                td.appendChild(canvas);
-                tr.appendChild(td);
             }
             table.appendChild(tr);
             
@@ -44,7 +57,7 @@ document.addEventListener("DOMContentLoaded", function(event)
             {
                 var tr = document.createElement("tr");
                 var td = document.createElement("td");
-                td.colSpan = data.dashboard.length;
+                td.colSpan = dashboardVisible.length;
 
                 var canvas = document.createElement("canvas");
                 canvas.id = "odometer";
@@ -58,7 +71,7 @@ document.addEventListener("DOMContentLoaded", function(event)
             
             var tr = document.createElement("tr");
             var td = document.createElement("td");
-            td.colSpan = data.dashboard.length;
+            td.colSpan = dashboardVisible.length;
             
             for (i in data.alerts)
             {
@@ -82,11 +95,9 @@ document.addEventListener("DOMContentLoaded", function(event)
             table.appendChild(tr);
             front[0].appendChild(table);
 
-            for (i in data.dashboard)
+            for (i in dashboardVisible)
             {
-                data.dashboard[i].width = getWidth() * data.dashboard[i].width;
-                data.dashboard[i].height = getHeight() * data.dashboard[i].height;
-                var gauge = new RadialGauge(data.dashboard[i]).draw();
+                new RadialGauge(dashboardVisible[i]).draw();
             }
 
             if(data.odometer)
@@ -108,20 +119,33 @@ document.addEventListener("DOMContentLoaded", function(event)
 				};
 				xhr.send();
 			}
-
-            var array = ["1","2","3"];
-            var back = document.getElementsByClassName("back");
+            
             var div = document.createElement("div");
-            var select = document.createElement("select");
-            div.appendChild(select);
-            back[0].appendChild(div);
-
-            for (var i = 0; i < array.length; i++) {
-                var option = document.createElement("option");
-                option.value = array[i];
-                option.text = "Dashboard " + array[i];
-                select.appendChild(option);
+            var hr = document.createElement("hr");
+            var br = document.createElement("br");
+            var back = document.getElementsByClassName("back");
+            
+            div.appendChild(buildGaugeList(dashboardHidden));
+            div.appendChild(br);
+            for (var i = 0; i < 10; i++) {
+                div.appendChild(br.cloneNode());
             }
+            div.appendChild(hr);
+            div.appendChild(buildGaugeList(dashboardVisible));
+            back[0].appendChild(div);
+            
+            var sort =  Sortable.create(div, {
+                animation: 150,
+                draggable: '.tile',
+                //handle: '.tile__name'
+            });
+            [].forEach.call(div.getElementsByClassName('tile__list'), function (el){
+                Sortable.create(el, {
+                    group: 'photo',
+                    animation: 150
+                });
+            });
+            //sort.destroy();
 
             document.gauges.forEach(function(gauge)
             {
@@ -138,7 +162,49 @@ document.addEventListener("DOMContentLoaded", function(event)
         },
         function(xhr) { console.error(xhr); }
     );
+
 });
+
+function buildGaugeList(array)
+{
+    var tile = document.createElement("div");
+    tile.classList.add("tile");
+    //tile.dataset.force = array.length;
+    var tile_list = document.createElement("div");
+    tile_list.classList.add("tile__list");
+
+    /*
+    var tile_name = document.createElement("div");
+    tile_name.classList.add("tile__name");
+    tile_name.textContent = Math.random().toString(36).substring(7);
+    tile_name.style.display = "none";
+    */
+
+    var back = document.getElementsByClassName("back");
+    var canvas = document.createElement("canvas");
+
+    for (var i = 0; i < array.length; i++) {
+        
+        array[i].renderTo = "_" + array[i].renderTo;
+        canvas.setAttribute("id", array[i].renderTo);
+
+        back[0].appendChild(canvas);
+        var gauge = new RadialGauge(array[i]).draw();
+        back[0].removeChild(canvas);
+
+        var ctx = canvas.getContext('2d');
+        var img = document.createElement("img");
+        img.src = canvas.toDataURL();
+        img.setAttribute('width', '18%');
+        tile_list.appendChild(img);
+    }
+    canvas = null;
+
+    //tile.appendChild(tile_name);
+    tile.appendChild(tile_list);
+
+    return tile;
+}
 
 function streamAJAX(path)
 {

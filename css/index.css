@@ -3,7 +3,7 @@ html {
   background-repeat: repeat; 
 }
 
-body {
+html, body {
   height: 100%;
   width: 100%;
   left: 0;
@@ -14,13 +14,18 @@ body {
   overflow:hidden;
 }
 
+table {
+  width:100%;
+  table-layout: fixed;
+}
+
 .alert {
-    padding: 20px;
-    background-color: #f44336;
-    color: white;
-    opacity: 1;
-    transition: opacity 0.6s;
-    margin-bottom: 15px;
+  padding: 20px;
+  background-color: #f44336;
+  color: white;
+  opacity: 1;
+  transition: opacity 0.6s;
+  margin-bottom: 15px;
 	cursor: pointer;
 	display: none;
 }
@@ -28,11 +33,6 @@ body {
 .alert.success {background-color: #4CAF50;}
 .alert.info {background-color: #2196F3;}
 .alert.warning {background-color: #ff9800;}
-
-table {
-  width:100%;
-  table-layout: fixed;
-}
 
 .odometer{
   display: table;
@@ -55,4 +55,39 @@ table {
 }
 .svg-red * {
   fill:#b52808;
+}
+
+.sortable-ghost {
+  opacity: .2;
+}
+
+.tile {
+  position: relative;
+  padding: 10px 30px;
+  text-align: center;
+  margin-top: 35px;
+  margin-left: 25px;
+  margin-right: 25px;
+  /*
+  background-color: #fff;
+  border: 1px solid white;
+  border-radius: 10px;
+  */
+}
+.tile__name {
+  cursor: move;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #FF7373;
+}
+.tile__list {
+  margin-top: 10px;
+}
+.tile__list:last-child {
+  margin-right: 0;
+  min-height: 80px;
+}
+.tile__list img {
+  cursor: move;
+  margin: 10px;
+  border-radius: 100%;
 }
