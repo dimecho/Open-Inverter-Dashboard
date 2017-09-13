@@ -10,6 +10,11 @@ This is a Raspberry Pi Dashboard designed for Huebner [Inverter Project](http://
 <img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/screenshot.jpg">
 </p>
 
+* Motor Sound Generator
+* RFID Unlocker (MFRC522)
+* WiFi Alarm with Accelerometer (ADXL345)
+
+
 ## Getting Started
 
 * Raspberry Pi 2/3

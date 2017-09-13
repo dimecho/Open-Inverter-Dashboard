@@ -1,171 +1,232 @@
-var odo;
+var view_file = "views/1.json";
 var blink_emergency;
 var blink_battery;
+var odometer_count;
 
 //window.addEventListener('load', function()
 document.addEventListener("DOMContentLoaded", function(event)
 {
-    loadAJAX("views/1.json",
+    loadAJAX(view_file, function(data)
+    {
+        //console.log(data);
+        loadView(data);
 
-        function(data)
-        {
-            //console.log(data);
-            var stream = "din_emcystop,din_ocur";
-
-            var front = document.getElementsByClassName("front");
-            var table = document.createElement("table");
-            var tr = document.createElement("tr");
-
-            var dashboardVisible = [];
-            var dashboardHidden = [];
-
-            for (i in data.dashboard)
-            {
-                data.dashboard[i].width = getWidth() * data.dashboard[i].width;
-                data.dashboard[i].height = getHeight() * data.dashboard[i].height;
-
-                if(data.dashboard[i].show)
-                {
-                    console.log(data.dashboard[i].renderTo);
-
-                    switch (data.dashboard[i].renderTo) {
-                        case "battery":
-                        stream += ",udc";
-                        break;
-                    case "speed":
-                        stream += ",rpm";
-                        break;
-                    }
-
-                    var td = document.createElement("td");
-                    var canvas = document.createElement("canvas");
-                    //canvas.style.cssText = "vertical-align: top";
-                    canvas.setAttribute("id", data.dashboard[i].renderTo);
-                    td.appendChild(canvas);
-                    tr.appendChild(td);
-
-                    dashboardVisible.push(data.dashboard[i]);
-                }else{
-                    dashboardHidden.push(data.dashboard[i]);
-                }
-            }
-            table.appendChild(tr);
-            
-            //var odometer = CANRead("distance");
-     
-            if(data.odometer)
-            {
-                var tr = document.createElement("tr");
-                var td = document.createElement("td");
-                td.colSpan = dashboardVisible.length;
-
-                var canvas = document.createElement("canvas");
-                canvas.id = "odometer";
-                canvas.height = 32;
-                canvas.width = 200;
-
-                td.appendChild(canvas);
-                tr.appendChild(td);
-                table.appendChild(tr);
-            }
-            
-            var tr = document.createElement("tr");
-            var td = document.createElement("td");
-            td.colSpan = dashboardVisible.length;
-            
-            for (i in data.alerts)
-            {
-                //console.log(data.alerts[i].svg);
-                
-                var svg = document.createElement("svg");
-                svg.id = data.alerts[i].id;
-                svg.dataset.color = data.alerts[i].color;
-                svg.classList.add("svg-inject");
-                svg.classList.add("svg-grey");
-                svg.style.width = getWidth()/12 + "px";
-                svg.style.height = getWidth()/12 + "px";
-                svg.setAttribute("data-src", "img/" + data.alerts[i].id + ".svg");
-                //svg.setAttribute("data-fallback", "img/" + data.alerts[i].id + ".png");
-                td.appendChild(svg);
-
-                new SVGInjector().inject(svg);
-            }
-
-            tr.appendChild(td);
-            table.appendChild(tr);
-            front[0].appendChild(table);
-
-            for (i in dashboardVisible)
-            {
-                new RadialGauge(dashboardVisible[i]).draw();
-            }
-
-            if(data.odometer)
-            {
-                display = new SegmentDisplay("odometer",data.odometer);
-                display.draw();
-                display.setValue(data.odometer.count);
-                //updateOdometer(data.odometer.count);
-            }
-
-			if(data.sounds)
-			{
-				xhr.open("GET", "sounds/" + data.sounds[i].id, true);
-				xhr.responseType = "arraybuffer";
-				xhr.onload = function(e){
-					window.addEventListener("keydown", createPitchStep(data.sounds[i].pitchStep))
-					window.addEventListener("keyup", createPitchStep(-data.sounds[i].pitchStep))
-					engineStart(this.response);
-				};
-				xhr.send();
-			}
-            
-            var div = document.createElement("div");
-            var hr = document.createElement("hr");
-            var br = document.createElement("br");
-            var back = document.getElementsByClassName("back");
-            
-            div.appendChild(buildGaugeList(dashboardHidden));
-            div.appendChild(br);
-            for (var i = 0; i < 10; i++) {
-                div.appendChild(br.cloneNode());
-            }
-            div.appendChild(hr);
-            div.appendChild(buildGaugeList(dashboardVisible));
-            back[0].appendChild(div);
-            
-            var sort =  Sortable.create(div, {
-                animation: 150,
-                draggable: '.tile',
-                //handle: '.tile__name'
-            });
-            [].forEach.call(div.getElementsByClassName('tile__list'), function (el){
-                Sortable.create(el, {
-                    group: 'photo',
-                    animation: 150
-                });
-            });
-            //sort.destroy();
-
-            document.gauges.forEach(function(gauge)
-            {
-                //console.log(gauge);
-
-                gauge.value = gauge.options.maxValue;
-                setTimeout(function()
-                {
-                    gauge.value = gauge.options.minValue;
-                    //streamAJAX(stream);
-                    
-                }, gauge.options.animationDuration*1.5);
-            });
-        },
-        function(xhr) { console.error(xhr); }
-    );
-
+    }, function(xhr) { console.error(xhr); });
 });
 
-function buildGaugeList(array)
+function loadView(json)
+{
+    //console.log(json);
+
+    var front = document.getElementsByClassName("front");
+    var table = document.createElement("table");
+    var tr = document.createElement("tr");
+    
+    while(front[0].children[0]) {
+        front[0].children[0].parentNode.removeChild(front[0]);
+    }
+
+    var dashboardVisible = [];
+    var dashboardHidden = [];
+
+    for (i in json.dashboard)
+    {
+        json.dashboard[i].width = getWidth() * json.dashboard[i].width;
+        json.dashboard[i].height = getHeight() * json.dashboard[i].height;
+
+        if(json.dashboard[i].show)
+        {
+            console.log(json.dashboard[i].renderTo);
+
+            switch (json.dashboard[i].renderTo) {
+                case "battery":
+                stream += ",udc";
+                break;
+            case "speed":
+                stream += ",rpm";
+                break;
+            }
+
+            var td = document.createElement("td");
+            var canvas = document.createElement("canvas");
+            //canvas.style.cssText = "vertical-align: top";
+            canvas.setAttribute("id", json.dashboard[i].renderTo);
+            td.appendChild(canvas);
+            tr.appendChild(td);
+
+            dashboardVisible.push(json.dashboard[i]);
+        }else{
+            dashboardHidden.push(json.dashboard[i]);
+        }
+    }
+    table.appendChild(tr);
+    
+    //var odometer = CANRead("distance");
+
+    if(json.odometer)
+    {
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        td.colSpan = dashboardVisible.length;
+
+        var canvas = document.createElement("canvas");
+        canvas.id = "odometer";
+        canvas.height = 32;
+        canvas.width = 200;
+
+        td.appendChild(canvas);
+        tr.appendChild(td);
+        table.appendChild(tr);
+    }
+    
+    var tr = document.createElement("tr");
+    var td = buildAlertList(json,false,12);
+    td.colSpan = dashboardVisible.length;
+
+    tr.appendChild(td);
+    table.appendChild(tr);
+    front[0].appendChild(table);
+
+    for (i in dashboardVisible)
+    {
+        new RadialGauge(dashboardVisible[i]).draw();
+    }
+
+    if(json.odometer)
+    {
+        display = new SegmentDisplay("odometer",json.odometer);
+        display.draw();
+        display.setValue(json.odometer.count);
+        //updateOdometer(json.odometer.count);
+    }
+
+    for (i in json.sounds)
+    {
+        if(json.sounds[i].play)
+        {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "sounds/" + json.sounds[i].id, true);
+            xhr.responseType = "arraybuffer";
+            xhr.onload = function(e){
+                window.addEventListener("keydown", createPitchStep(json.sounds[i].pitchStep))
+                window.addEventListener("keyup", createPitchStep(-json.sounds[i].pitchStep))
+                engineStart(this.response);
+            };
+            xhr.send();
+            break;
+        }
+    }
+    
+    var divA = document.createElement("div");
+    var divB = document.createElement("div");
+    
+    var back = document.getElementsByClassName("back");
+    var table = document.createElement("table");
+
+    var tr = document.createElement("tr");
+    var td = document.createElement("td");
+    divA.appendChild(buildGaugeList(dashboardHidden,"15%"));
+    td.appendChild(divA);
+    tr.appendChild(td);
+    table.appendChild(tr);
+
+    var tr = document.createElement("tr");
+    var td = document.createElement("td");
+    var t = document.createElement("table");
+    divB.appendChild(buildGaugeList(dashboardVisible,"20%"));
+    td.height="400";
+    td.appendChild(divB);
+    tr.appendChild(td);
+    table.appendChild(tr);
+
+    var tr = document.createElement("tr");
+    var td = buildAlertList(json,true,20);
+    td.height="300";
+    tr.appendChild(td);
+    table.appendChild(tr);
+
+    [].forEach.call(divA.getElementsByClassName('tile__list'), function (el){
+        Sortable.create(el, {
+            group: 'photo',
+            animation: 150,
+            /*
+            onChoose: function (evt) {
+                evt.item.setAttribute('width', "16%");
+            },
+            */
+            onAdd: function (evt) {
+                //evt.from;
+                evt.item.setAttribute('width', "15%");
+            }
+        });
+    });
+    [].forEach.call(divB.getElementsByClassName('tile__list'), function (el){
+        Sortable.create(el, {
+            group: 'photo',
+            animation: 150,
+            /*
+            onChoose: function (evt) {
+                evt.item.setAttribute('width', "24%");
+            },
+            */
+            onAdd: function (evt) {
+                //evt.from;
+                evt.item.setAttribute('width', "20%");
+            }
+        });
+    });
+    
+    back[0].appendChild(table);
+
+    //sort.destroy();
+
+    var stream = "din_emcystop,din_ocur";
+
+    document.gauges.forEach(function(gauge)
+    {
+        //console.log(gauge);
+
+        gauge.value = gauge.options.maxValue;
+        setTimeout(function()
+        {
+            gauge.value = gauge.options.minValue;
+            //streamAJAX(stream);
+            
+        }, gauge.options.animationDuration*1.5);
+    });
+};
+
+function saveView(json)
+{
+
+};
+
+function buildAlertList(json,showAll,size)
+{
+    var td = document.createElement("td");
+
+    for (i in json.alerts)
+    {
+        //console.log(json.alerts[i].svg);
+        if(json.alerts[i].show || showAll) {
+            var svg = document.createElement("svg");
+            svg.id = json.alerts[i].id;
+            svg.dataset.color = json.alerts[i].color;
+            svg.classList.add("svg-inject");
+            svg.classList.add("svg-grey");
+            svg.style.width = getWidth()/size + "px";
+            svg.style.height = getWidth()/size + "px";
+            svg.setAttribute("data-src", "img/" + json.alerts[i].id + ".svg");
+            //svg.setAttribute("data-fallback", "img/" + json.alerts[i].id + ".png");
+            td.appendChild(svg);
+            new SVGInjector().inject(svg);
+        }
+    }
+
+    return td;
+};
+
+function buildGaugeList(array,size,title)
 {
     var tile = document.createElement("div");
     tile.classList.add("tile");
@@ -173,13 +234,15 @@ function buildGaugeList(array)
     var tile_list = document.createElement("div");
     tile_list.classList.add("tile__list");
 
-    /*
-    var tile_name = document.createElement("div");
-    tile_name.classList.add("tile__name");
-    tile_name.textContent = Math.random().toString(36).substring(7);
-    tile_name.style.display = "none";
-    */
-
+    if(title)
+    {
+        var tile_name = document.createElement("div");
+        tile_name.classList.add("tile__name");
+        tile_name.textContent = title;
+        //tile_name.style.display = "none";
+        tile.appendChild(tile_name);
+    }
+    
     var back = document.getElementsByClassName("back");
     var canvas = document.createElement("canvas");
 
@@ -195,16 +258,15 @@ function buildGaugeList(array)
         var ctx = canvas.getContext('2d');
         var img = document.createElement("img");
         img.src = canvas.toDataURL();
-        img.setAttribute('width', '18%');
+        img.setAttribute('width', size);
         tile_list.appendChild(img);
     }
     canvas = null;
 
-    //tile.appendChild(tile_name);
     tile.appendChild(tile_list);
 
     return tile;
-}
+};
 
 function streamAJAX(path)
 {
@@ -280,7 +342,9 @@ function loadAJAX(path, success, error)
             }
         }
     };
+   
     xhr.open("GET", path, true);
+    //xhr.setRequestHeader('Content-Type', 'application/json'); 
     xhr.send();
 };
 
@@ -306,7 +370,7 @@ function getHeight() {
 
 function updateOdometer(n) {
     n += 0.01
-    odo.setValue(n);
+    odometer_count.setValue(n);
     setTimeout(function(){updateOdometer(n)}, 80);
 };
 

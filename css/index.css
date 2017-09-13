@@ -63,11 +63,10 @@ table {
 
 .tile {
   position: relative;
-  padding: 10px 30px;
   text-align: center;
-  margin-top: 35px;
-  margin-left: 25px;
-  margin-right: 25px;
+  margin-top: 20px;
+  margin-left: 20px;
+  margin-right: 20px;
   /*
   background-color: #fff;
   border: 1px solid white;

@@ -123,8 +123,8 @@ echo "${green}Install CH340 Driver for Kernel ${kernel_version_needed}? (y/n)${r
 read yn
 if [ $yn = y ]; then
 	#cd /lib/modules/$(uname -r)/kernel/drivers/usb/serial
-	sudo cp -f ./drivers/ch34x.ko "/lib/modules/${kernel_version_needed}/kernel/drivers/usb/serial"
-	sudo modprobe ./drivers/ch34x.ko
+	sudo cp -f ./drivers/CH340/ch34x.ko "/lib/modules/${kernel_version_needed}/kernel/drivers/usb/serial"
+	sudo modprobe ./drivers/CH340/ch34x.ko
 	:'
 	#https://github.com/aperepel/raspberrypi-ch340-driver
 	sudo apt-get -y install gcc-4.8 g++-4.8
@@ -135,7 +135,7 @@ if [ $yn = y ]; then
 	sudo apt-get -y install bc
 	sudo apt-get -y install libncurses5-dev
 	rpi-source
-	cd ./drivers
+	cd ./drivers/CH340
 	make
 	make load
 	'
@@ -152,15 +152,14 @@ if [ $yn = y ]; then
 	make
 	sudo make check
 	sudo make install
-
-	git clone https://github.com/paguz/RPi-RFID
-	cd RPi-RFID
-	g++ MFRC522.cpp Read.cpp -std=c++11 -lbcm2835
+	
+	cd "$(dirname "$0")/drivers/RPi-RFID"
+	make
 	:'
 	+ ---------------- + ------- + ------------ +
 	| Name/Signal      | MFRC522 | Raspberry Pi |
 	+ ================ + ======= + ============ +
-	| VCC              | 3,3V    | 1 (3V3)      |
+	| VCC              | 3.3V    | 1 (3V3)      |
 	+ ---------------- + ------- + ------------ +
 	| RST/Reset        | RST     | 22 (GPIO25)  |
 	+ ---------------- + ------- + ------------ +
@@ -180,8 +179,10 @@ if [ $yn = y ]; then
 	MOSI = Master Output, Slave Input
 	'
 	
-	#dtparam=spi=on
-	#dtoverlay=spi0-hw-cs
+	if [ ! grep -q "dtoverlay=spi0-hw-cs" $configLocation ]; then
+  		sudo sh -c "sudo echo 'dtparam=spi=on' >> ${configLocation}"
+  		sudo sh -c "sudo echo 'dtoverlay=spi0-hw-cs' >> ${configLocation}"
+ 	fi
 fi
 
 echo "${green}Install LCD Drivers? (y/n)${reset}"

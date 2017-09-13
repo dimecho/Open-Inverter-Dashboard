@@ -34,6 +34,9 @@
 		}else{
 			echo readSerial("get " .$_GET["get"]);
 		}
+        
+        if(strpos($_GET["get"],"rfid") !== false && isset($_SESSION["rfid"]))
+            echo $_SESSION["rfid"]. "\n";
 	}
 	else if(isset($_GET["stream"]))
 	{

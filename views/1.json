@@ -246,12 +246,46 @@
     }],
     "alerts": [{
         "id": "battery",
+        "show": true,
         "color": "svg-green"
     },{
         "id": "temp",
+        "show": true,
         "color": "svg-red"
     },{
         "id": "emergency",
+        "show": true,
         "color": "svg-orange"
-    }]
+    },{
+        "id": "sound",
+        "show": false,
+        "color": "svg-blue"
+    },{
+        "id": "rfid",
+        "show": false,
+        "color": "svg-blue"
+    },{
+        "id": "wifi",
+        "show": false,
+        "color": "svg-blue"
+    }],
+    "sounds": [{
+        "id": "deepengine",
+        "play": false
+    },{
+        "id": "deepengine2",
+        "play": false
+    }],
+    "rfid": [{
+        "id": "2434354577"
+    },{
+        "id": "2434354578"
+    }],
+    "wifi": {
+        "ssid": "wireless",
+        "email": "user@email.com",
+        "smtp": "smtp.server.com",
+        "login": "",
+        "password": ""
+    }
 }
