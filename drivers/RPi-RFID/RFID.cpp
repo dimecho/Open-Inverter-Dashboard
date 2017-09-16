@@ -23,7 +23,7 @@ int main(){
   
 		system("wget http://127.0.0.1:8080/drivers/RPi-RFID/RFID.php?id=" + hex);
     }
-    usleep(1000*1000);
+    usleep(2400*1000);
   }
   return 0;
 }

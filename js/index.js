@@ -1,4 +1,5 @@
-var view_file = "views/1.json";
+var json = "";
+var json_file = "views/1.json";
 var blink_emergency;
 var blink_battery;
 var odometer_count;
@@ -6,7 +7,7 @@ var odometer_count;
 //window.addEventListener('load', function()
 document.addEventListener("DOMContentLoaded", function(event)
 {
-    loadAJAX(view_file, function(data)
+    loadAJAX(json_file, function(data)
     {
         //console.log(data);
         loadView(data);
@@ -14,8 +15,9 @@ document.addEventListener("DOMContentLoaded", function(event)
     }, function(xhr) { console.error(xhr); });
 });
 
-function loadView(json)
+function loadView(j)
 {
+    json  = j;
     //console.log(json);
 
     var front = document.getElementsByClassName("front");
@@ -34,7 +36,7 @@ function loadView(json)
         json.dashboard[i].width = getWidth() * json.dashboard[i].width;
         json.dashboard[i].height = getHeight() * json.dashboard[i].height;
 
-        if(json.dashboard[i].show)
+        if(json.dashboard[i].enabled)
         {
             console.log(json.dashboard[i].renderTo);
 
@@ -86,6 +88,10 @@ function loadView(json)
     tr.appendChild(td);
     table.appendChild(tr);
     front[0].appendChild(table);
+    front[0].onclick = function () {
+        //console.log(this);
+        this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
+    };
 
     for (i in dashboardVisible)
     {
@@ -177,10 +183,17 @@ function loadView(json)
     });
     
     back[0].appendChild(table);
+    back[0].onclick = function () {
+        //console.log(this);
+        this.parentElement.style.cssText = "";
 
-    //sort.destroy();
+        //TODO: Show visual effect
+        saveView();
+    };
 
     var stream = "din_emcystop,din_ocur";
+
+    //TODO: Detect idle mode and slow down stream
 
     document.gauges.forEach(function(gauge)
     {
@@ -194,10 +207,13 @@ function loadView(json)
             
         }, gauge.options.animationDuration*1.5);
     });
+
+    new SVGInjector().inject(document.querySelectorAll("img.svg-inject"));
 };
 
-function saveView(json)
+function saveView()
 {
+    //TODO:
 
 };
 
@@ -208,18 +224,75 @@ function buildAlertList(json,showAll,size)
     for (i in json.alerts)
     {
         //console.log(json.alerts[i].svg);
-        if(json.alerts[i].show || showAll) {
-            var svg = document.createElement("svg");
+        if(json.alerts[i].enabled || showAll) {
+            var span = document.createElement("span");
+            var svg = document.createElement("img");
+            var x = getWidth()/size/2;
+
             svg.id = json.alerts[i].id;
             svg.dataset.color = json.alerts[i].color;
             svg.classList.add("svg-inject");
             svg.classList.add("svg-grey");
             svg.style.width = getWidth()/size + "px";
             svg.style.height = getWidth()/size + "px";
-            svg.setAttribute("data-src", "img/" + json.alerts[i].id + ".svg");
+            svg.src = "img/" + json.alerts[i].id + ".svg";
             //svg.setAttribute("data-fallback", "img/" + json.alerts[i].id + ".png");
-            td.appendChild(svg);
-            new SVGInjector().inject(svg);
+            span.style.position = "relative"; 
+            span.style.zIndex = "1";
+            span.appendChild(svg);
+            span.onclick = function (e) {
+                //console.log(this);
+                //console.log(this.children[1].src);
+                e.preventDefault();
+                e.stopPropagation();
+
+                if(this.children[1].src.indexOf("disabled") !== -1)
+                {
+                    this.children[1].src = "img/enabled.svg";
+
+                    if(this.children[0].id =="wifi")
+                    {
+                        var openModal = document.getElementById("lightbox")
+                        var a = document.createElement("a");
+                        var h = document.createElement("h2");
+                        var p = document.createElement("p");
+
+                        openModal.innerHTML = "";
+                        a.title = "Close";
+                        a.href = "#close";
+                        a.classList.add("close");
+                        a.innerHTML = "X";
+                        h.innerHTML = "WiFi";
+
+                        openModal.appendChild(a);
+                        openModal.appendChild(h);
+                        openModal.appendChild(p);
+
+                        window.location = "#openModal";
+                    }
+
+                }else{
+                    this.children[1].src = "img/disabled.svg";
+                }
+            };
+
+            if(showAll)
+            {
+                var overlay = document.createElement("img");
+                overlay.classList.add("svg-inject");
+                if(json.alerts[i].enabled)
+                {
+                    overlay.src = "img/enabled.svg";
+                }else{
+                    overlay.src = "img/disabled.svg";
+                }
+                overlay.style.cssText = "position:relative;top:" + x + "px;left:-" + x + "px;width:" + x + "px;height:" + x + "px;";
+                span.appendChild(overlay);
+                //new SVGInjector().inject(overlay);
+            }
+
+            td.appendChild(span);
+            //new SVGInjector().inject(svg);
         }
     }
 

@@ -40,11 +40,6 @@ input {
     display: none;
 }
 
-:checked + .card {
-    transform: rotateX(180deg);
-    -webkit-transform: rotateX(180deg);
-}
-
 label {
     -webkit-perspective: 1000px;
     perspective: 1000px;
@@ -63,6 +58,11 @@ label {
 }
 
 /*
+:checked + .card {
+    transform: rotateX(180deg);
+    -webkit-transform: rotateX(180deg);
+}
+
 label:hover .card {
     -webkit-transform: rotateX(20deg);
     transform: rotateX(20deg);

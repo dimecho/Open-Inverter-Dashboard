@@ -1,7 +1,7 @@
 {
     "dashboard": [{
         "renderTo": "battery",
-        "show": false,
+        "enabled": false,
         "units": "%",
         "title": "Battery",
         "width": 0.5,
@@ -44,7 +44,7 @@
         "colorValueBoxRectEnd": "#333"
     }, {
         "renderTo": "speed",
-        "show": true,
+        "enabled": true,
         "units": "Km/h",
         "width": 0.5,
         "height": 1,
@@ -108,7 +108,7 @@
         "colorValueBoxRectEnd": "#333"
     }, {
         "renderTo": "rpm",
-        "show": true,
+        "enabled": true,
         "units": "1/min x 1000",
         "width": 0.5,
         "height": 1,
@@ -173,7 +173,7 @@
         "colorValueBoxRectEnd": "#333"
     }, {
         "renderTo": "temp",
-        "show": false,
+        "enabled": false,
         "units": "°C",
         "title": "Temperature",
         "width": 0.5,
@@ -246,27 +246,27 @@
     }],
     "alerts": [{
         "id": "battery",
-        "show": true,
+        "enabled": true,
         "color": "svg-green"
     },{
         "id": "temp",
-        "show": true,
+        "enabled": true,
         "color": "svg-red"
     },{
         "id": "emergency",
-        "show": true,
+        "enabled": true,
         "color": "svg-orange"
     },{
         "id": "sound",
-        "show": false,
+        "enabled": false,
         "color": "svg-blue"
     },{
         "id": "rfid",
-        "show": false,
+        "enabled": false,
         "color": "svg-blue"
     },{
         "id": "wifi",
-        "show": false,
+        "enabled": false,
         "color": "svg-blue"
     }],
     "sounds": [{
