@@ -252,21 +252,37 @@ function buildAlertList(json,showAll,size)
 
                     if(this.children[0].id =="wifi")
                     {
-                        var openModal = document.getElementById("lightbox")
-                        var a = document.createElement("a");
-                        var h = document.createElement("h2");
-                        var p = document.createElement("p");
+                        var h = document.getElementById("lightboxTitle");
+                        var b = document.getElementById("lightboxBody");
 
-                        openModal.innerHTML = "";
-                        a.title = "Close";
-                        a.href = "#close";
-                        a.classList.add("close");
-                        a.innerHTML = "X";
+
+                        var email = document.createElement("input");
+                        var smtp = document.createElement("input");
+                        var username = document.createElement("input");
+                        var password = document.createElement("input");
+                        var save = document.createElement("button");
+
+                        save.type = "submit";
+                        save.innerHTML = "Save";
+                        save.classList.add("btn");
+                        save.classList.add("btn-primary");
+
+                        b.innerHTML = "";
                         h.innerHTML = "WiFi";
+                        email.type = "text";
+                        smtp.type = "text";
+                        username.type = "text";
+                        password.type = "text";
+                        email.classList.add("form-control");
+                        email.classList.add("col-10");
+                        email.setAttribute("value", "Email");
+                        email.setAttribute("placeholder", "Email");
 
-                        openModal.appendChild(a);
-                        openModal.appendChild(h);
-                        openModal.appendChild(p);
+                        b.appendChild(email);
+                        b.appendChild(smtp);
+                        b.appendChild(username);
+                        b.appendChild(password);
+                        b.appendChild(save);
 
                         window.location = "#openModal";
                     }

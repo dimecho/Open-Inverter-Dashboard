@@ -36,9 +36,11 @@
     cursor: pointer;
 }
 
+/*
 input {
     display: none;
 }
+*/
 
 label {
     -webkit-perspective: 1000px;
