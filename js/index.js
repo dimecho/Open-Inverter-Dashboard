@@ -4,192 +4,205 @@ var blink_emergency;
 var blink_battery;
 var odometer_count;
 
+var dashboardVisible = [];
+var dashboardHidden = [];
+
 //window.addEventListener('load', function()
 document.addEventListener("DOMContentLoaded", function(event)
 {
     loadAJAX(json_file, function(data)
     {
         //console.log(data);
-        loadView(data);
+        json = data;
+        loadView("front");
+        loadView("back");
 
     }, function(xhr) { console.error(xhr); });
 });
 
-function loadView(j)
+function loadView(view)
 {
-    json  = j;
     //console.log(json);
 
-    var front = document.getElementsByClassName("front");
-    var table = document.createElement("table");
-    var tr = document.createElement("tr");
-    
-    while(front[0].children[0]) {
-        front[0].children[0].parentNode.removeChild(front[0]);
-    }
-
-    var dashboardVisible = [];
-    var dashboardHidden = [];
-
-    for (i in json.dashboard)
+    if(view === "front")
     {
-        json.dashboard[i].width = getWidth() * json.dashboard[i].width;
-        json.dashboard[i].height = getHeight() * json.dashboard[i].height;
+        var front = document.getElementsByClassName("front");
+        var table = document.createElement("table");
+        var tr = document.createElement("tr");
+        
+        while(front[0].children[0]) {
+            front[0].children[0].parentNode.removeChild(front[0]);
+        }
 
-        if(json.dashboard[i].enabled)
+        for (i in json.dashboard)
         {
-            console.log(json.dashboard[i].renderTo);
+            json.dashboard[i].width = getWidth() * json.dashboard[i].width;
+            json.dashboard[i].height = getHeight() * json.dashboard[i].height;
 
-            switch (json.dashboard[i].renderTo) {
-                case "battery":
-                stream += ",udc";
-                break;
-            case "speed":
-                stream += ",rpm";
-                break;
+            if(json.dashboard[i].enabled)
+            {
+                console.log(json.dashboard[i].renderTo);
+
+                switch (json.dashboard[i].renderTo) {
+                    case "battery":
+                    stream += ",udc";
+                    break;
+                case "speed":
+                    stream += ",rpm";
+                    break;
+                }
+
+                var td = document.createElement("td");
+                var canvas = document.createElement("canvas");
+                //canvas.style.cssText = "vertical-align: top";
+                canvas.setAttribute("id", json.dashboard[i].renderTo);
+                td.appendChild(canvas);
+                tr.appendChild(td);
+
+                dashboardVisible.push(json.dashboard[i]);
+            }else{
+                dashboardHidden.push(json.dashboard[i]);
             }
+        }
+        table.appendChild(tr);
+        
+        //var odometer = CANRead("distance");
 
+        if(json.odometer)
+        {
+            var tr = document.createElement("tr");
             var td = document.createElement("td");
+            td.colSpan = dashboardVisible.length;
+
             var canvas = document.createElement("canvas");
-            //canvas.style.cssText = "vertical-align: top";
-            canvas.setAttribute("id", json.dashboard[i].renderTo);
+            canvas.id = "odometer";
+            canvas.height = 32;
+            canvas.width = 200;
+
             td.appendChild(canvas);
             tr.appendChild(td);
-
-            dashboardVisible.push(json.dashboard[i]);
-        }else{
-            dashboardHidden.push(json.dashboard[i]);
+            table.appendChild(tr);
         }
-    }
-    table.appendChild(tr);
-    
-    //var odometer = CANRead("distance");
-
-    if(json.odometer)
-    {
+        
         var tr = document.createElement("tr");
-        var td = document.createElement("td");
+        var td = buildAlertList(json,false,12);
         td.colSpan = dashboardVisible.length;
 
-        var canvas = document.createElement("canvas");
-        canvas.id = "odometer";
-        canvas.height = 32;
-        canvas.width = 200;
-
-        td.appendChild(canvas);
         tr.appendChild(td);
         table.appendChild(tr);
-    }
-    
-    var tr = document.createElement("tr");
-    var td = buildAlertList(json,false,12);
-    td.colSpan = dashboardVisible.length;
+        front[0].appendChild(table);
+        front[0].onclick = function () {
+            //console.log(this);
+            this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
+        };
 
-    tr.appendChild(td);
-    table.appendChild(tr);
-    front[0].appendChild(table);
-    front[0].onclick = function () {
-        //console.log(this);
-        this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
-    };
-
-    for (i in dashboardVisible)
-    {
-        new RadialGauge(dashboardVisible[i]).draw();
-    }
-
-    if(json.odometer)
-    {
-        display = new SegmentDisplay("odometer",json.odometer);
-        display.draw();
-        display.setValue(json.odometer.count);
-        //updateOdometer(json.odometer.count);
-    }
-
-    for (i in json.sounds)
-    {
-        if(json.sounds[i].play)
+        for (i in dashboardVisible)
         {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "sounds/" + json.sounds[i].id, true);
-            xhr.responseType = "arraybuffer";
-            xhr.onload = function(e){
-                window.addEventListener("keydown", createPitchStep(json.sounds[i].pitchStep))
-                window.addEventListener("keyup", createPitchStep(-json.sounds[i].pitchStep))
-                engineStart(this.response);
-            };
-            xhr.send();
-            break;
+            new RadialGauge(dashboardVisible[i]).draw();
         }
+
+        if(json.odometer)
+        {
+            display = new SegmentDisplay("odometer",json.odometer);
+            display.draw();
+            display.setValue(json.odometer.count);
+            //updateOdometer(json.odometer.count);
+        }
+
+        for (i in json.sounds)
+        {
+            if(json.sounds[i].play)
+            {
+                var xhr = new XMLHttpRequest();
+                xhr.open("GET", "sounds/" + json.sounds[i].id, true);
+                xhr.responseType = "arraybuffer";
+                xhr.onload = function(e){
+                    window.addEventListener("keydown", createPitchStep(json.sounds[i].pitchStep))
+                    window.addEventListener("keyup", createPitchStep(-json.sounds[i].pitchStep))
+                    engineStart(this.response);
+                };
+                xhr.send();
+                break;
+            }
+        }
+
+    }else if (view === "back") {
+    
+        var divA = document.createElement("div");
+        var divB = document.createElement("div");
+        
+        var back = document.getElementsByClassName("back");
+        var table = document.createElement("table");
+
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        divA.appendChild(buildGaugeList(dashboardHidden,"15%"));
+        td.appendChild(divA);
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        var t = document.createElement("table");
+        divB.appendChild(buildGaugeList(dashboardVisible,"20%"));
+        td.height="400";
+        td.appendChild(divB);
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        var tr = document.createElement("tr");
+        var td = buildAlertList(json,true,20);
+        td.height="300";
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        [].forEach.call(divA.getElementsByClassName('tile__list'), function (el){
+            Sortable.create(el, {
+                group: 'photo',
+                animation: 150,
+                /*
+                onChoose: function (evt) {
+                    evt.item.setAttribute('width', "16%");
+                },
+                */
+                onAdd: function (evt) {
+                    //evt.from;
+                    evt.item.setAttribute('width', "15%");
+                    console.log(evt.item.id);
+                }
+            });
+        });
+        [].forEach.call(divB.getElementsByClassName('tile__list'), function (el){
+            Sortable.create(el, {
+                group: 'photo',
+                animation: 150,
+                /*
+                onChoose: function (evt) {
+                    evt.item.setAttribute('width', "24%");
+                },
+                */
+                onAdd: function (evt) {
+                    //evt.from;
+                    evt.item.setAttribute('width', "20%");
+                    console.log(evt.item.id);
+                    console.log(evt.newIndex);
+                },
+                onUpdate: function (evt) {
+                    console.log(evt.newIndex);
+                }
+            });
+        });
+        
+        back[0].appendChild(table);
+        back[0].onclick = function () {
+            //console.log(this);
+            this.parentElement.style.cssText = "";
+
+            //TODO: Show visual effect
+            saveView();
+        };
+
     }
-    
-    var divA = document.createElement("div");
-    var divB = document.createElement("div");
-    
-    var back = document.getElementsByClassName("back");
-    var table = document.createElement("table");
-
-    var tr = document.createElement("tr");
-    var td = document.createElement("td");
-    divA.appendChild(buildGaugeList(dashboardHidden,"15%"));
-    td.appendChild(divA);
-    tr.appendChild(td);
-    table.appendChild(tr);
-
-    var tr = document.createElement("tr");
-    var td = document.createElement("td");
-    var t = document.createElement("table");
-    divB.appendChild(buildGaugeList(dashboardVisible,"20%"));
-    td.height="400";
-    td.appendChild(divB);
-    tr.appendChild(td);
-    table.appendChild(tr);
-
-    var tr = document.createElement("tr");
-    var td = buildAlertList(json,true,20);
-    td.height="300";
-    tr.appendChild(td);
-    table.appendChild(tr);
-
-    [].forEach.call(divA.getElementsByClassName('tile__list'), function (el){
-        Sortable.create(el, {
-            group: 'photo',
-            animation: 150,
-            /*
-            onChoose: function (evt) {
-                evt.item.setAttribute('width', "16%");
-            },
-            */
-            onAdd: function (evt) {
-                //evt.from;
-                evt.item.setAttribute('width', "15%");
-            }
-        });
-    });
-    [].forEach.call(divB.getElementsByClassName('tile__list'), function (el){
-        Sortable.create(el, {
-            group: 'photo',
-            animation: 150,
-            /*
-            onChoose: function (evt) {
-                evt.item.setAttribute('width', "24%");
-            },
-            */
-            onAdd: function (evt) {
-                //evt.from;
-                evt.item.setAttribute('width', "20%");
-            }
-        });
-    });
-    
-    back[0].appendChild(table);
-    back[0].onclick = function () {
-        //console.log(this);
-        this.parentElement.style.cssText = "";
-
-        //TODO: Show visual effect
-        saveView();
-    };
 
     var stream = "din_emcystop,din_ocur";
 
@@ -254,7 +267,6 @@ function buildAlertList(json,showAll,size)
                     {
                         var h = document.getElementById("lightboxTitle");
                         var b = document.getElementById("lightboxBody");
-
 
                         var email = document.createElement("input");
                         var smtp = document.createElement("input");
@@ -338,7 +350,7 @@ function buildGaugeList(array,size,title)
     for (var i = 0; i < array.length; i++) {
         
         array[i].renderTo = "_" + array[i].renderTo;
-        canvas.setAttribute("id", array[i].renderTo);
+        canvas.id = array[i].renderTo;
 
         back[0].appendChild(canvas);
         var gauge = new RadialGauge(array[i]).draw();
@@ -347,6 +359,7 @@ function buildGaugeList(array,size,title)
         var ctx = canvas.getContext('2d');
         var img = document.createElement("img");
         img.src = canvas.toDataURL();
+        img.id = array[i].renderTo;
         img.setAttribute('width', size);
         tile_list.appendChild(img);
     }

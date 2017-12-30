@@ -12,11 +12,10 @@
     }
     
     if(!isset($_SESSION["serial"])) {
-    	exec("stty -F " .$com. " 115200");
-    	exec("stty -F " .$com. " -parenb");
-    	exec("stty -F " .$com. " cs8");
-    	exec("stty -F " .$com. " cstopb");
-    	exec("stty -F " .$com. " clocal -crtscts -ixon -ixoff");
+
+        exec("minicom -b 115200 -o -D " .$com. " &");
+        exec("killall minicom");
+        
         $_SESSION["serial"] = 1;
     }
 	

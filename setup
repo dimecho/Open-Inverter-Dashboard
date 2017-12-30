@@ -48,38 +48,37 @@ sudo apt-get -y install chromium-browser
 
 echo "${red}...Installing Web Server${reset}"
 sudo apt-get install -y php5-common php5-cgi php5
-:'
-sudo apt-get -y install lighttpd
-sudo lighty-enable-mod fastcgi-php
-sudo service lighttpd force-reload
-#sudo apt-get -y install apache2
-#sudo apt-get -y install libapache2-mod-php5
-'
+
+htmlLocation="/var/www/html"
+echo "...Installing Web Files ${htmlLocation}"
+if [ $(dirname "$0") != $htmlLocation ]; then
+	sudo mkdir -p $htmlLocation
+	sudo cp -rf ./* $htmlLocation
+fi
 
 echo "${red}...Setting Web Server Permissions${reset}"
-sudo chown www-data:www-data /var/www
+sudo mkdir -p /var/www/html
+sudo adduser www-data www-data
+sudo chown -R www-data:www-data /var/www
 sudo chmod 755 /var/www
-sudo adduser www-data pi
-
-echo "${red}...Setting TTY Permissions${reset}"
-#UART on the Pi-3 you will need to disable bluetooth
-#enable_uart=1
-ls -la /dev/ttyAMA0
-sudo systemctl mask serial-getty@ttyAMA0.service
-sudo usermod -a -G dialout www-data
-
-echo "${red}...Installing Web Files${reset}"
-htmlLocation="/var/www/html"
-if [ $(dirname "$0") != $htmlLocation ]; then
-	echo "...Installing HTML files to ${htmlLocation}"
-	cp -rf ./* $htmlLocation
-fi
+sudo usermod -a -G www-data pi
 
 echo "${red}...Backing up config${reset}"
 configLocation="/boot/config.txt"
 if [ ! -f "${configLocation}.bak" ]; then
     sudo cp "${configLocation}" "${configLocation}.bak"
 fi
+
+echo "${red}...Setting TTY Permissions${reset}"
+sudo apt-get install -y minicom
+ls -la /dev/ttyAMA0
+sudo systemctl enable serial-getty@ttyAMA0.service
+sudo usermod -a -G dialout www-data
+sudo usermod -a -G tty www-data
+#UART on the Pi-3 you will need to disable bluetooth
+sudo sh -c "sudo echo '
+enable_uart=1
+dtoverlay=pi3-miniuart-bt' >> /boot/config.txt"
 
 echo "${green}Auto-Start Full Screen Kiosk Mode? (y/n)${reset}"
 read yn
@@ -104,8 +103,8 @@ fi
 echo "${green}Enable SSH? (y/n)${reset}"
 read yn
 if [ $yn = y ]; then
-	sudo /etc/init.d/ssh start
-	sudo update-rc.d ssh defaults
+    sudo systemctl enable ssh
+    sudo systemctl start ssh
 fi
 
 echo "${green}Enable VNC? (y/n)${reset}"

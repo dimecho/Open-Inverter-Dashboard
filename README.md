@@ -1,19 +1,14 @@
-<p align="center">
-<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/icon.png">
-</p>
+<p align="center"><img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/icon.png"></p>
 
 # Hubner Inverter - Raspberry Dash
 
 This is a Raspberry Pi Dashboard designed for Huebner [Inverter Project](http://johanneshuebner.com/quickcms/index.html%3Fde_electric-car-conversion-site,14.html)
 
-<p align="center">
-<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/screenshot.jpg">
-</p>
+![Screenshot](img/screenshot.jpg?raw=true)
 
 * Motor Sound Generator
 * RFID Unlocker (MFRC522)
 * WiFi Alarm with Accelerometer (ADXL345)
-
 
 ## Getting Started
 
@@ -42,10 +37,8 @@ chmod +x setup
 
 * Connect Inverter CPU to Raspberry Pi directly without USB-TTL converter
 
-<p align="center">
-<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/connect.png">
-<img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/pi2_gpio.png">
-</p>
+![Connect](img/connect.png?raw=true)
+![Pin Layout](img/pi2_gpio.png?raw=true)
 
 ## Author
 
@@ -53,4 +46,4 @@ Dima Dykhman
 
 ## License
 
-<a href="http://creativecommons.org/publicdomain/zero/1.0/" rel="license" target="_blank"> <img alt="CC0" border="0" src="http://i.creativecommons.org/l/zero/1.0/88x31.png" title="CC0" /></a>
+[![CC0](http://i.creativecommons.org/l/zero/1.0/88x31.png)](http://creativecommons.org/publicdomain/zero/1.0/)
