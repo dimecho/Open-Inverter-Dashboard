@@ -1,5 +1,6 @@
 {
     "dashboard": [{
+        "index": 0,
         "renderTo": "battery",
         "enabled": false,
         "units": "%",
@@ -43,6 +44,7 @@
         "colorValueBoxRect": "#222",
         "colorValueBoxRectEnd": "#333"
     }, {
+        "index": 1,
         "renderTo": "speed",
         "enabled": true,
         "units": "Km/h",
@@ -107,6 +109,7 @@
         "colorValueBoxRect": "#222",
         "colorValueBoxRectEnd": "#333"
     }, {
+        "index": 2,
         "renderTo": "rpm",
         "enabled": true,
         "units": "1/min x 1000",
@@ -172,6 +175,7 @@
         "colorValueBoxRect": "#222",
         "colorValueBoxRectEnd": "#333"
     }, {
+        "index": 3,
         "renderTo": "temp",
         "enabled": false,
         "units": "°C",

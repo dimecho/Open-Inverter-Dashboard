@@ -1,43 +1,97 @@
 var json = "";
-var json_file = "views/1.json";
+var view = "1.json";
 var blink_emergency;
 var blink_battery;
 var odometer_count;
-
 var dashboardVisible = [];
 var dashboardHidden = [];
+var stream = "din_emcystop,din_ocur";
 
 //window.addEventListener('load', function()
 document.addEventListener("DOMContentLoaded", function(event)
 {
-    loadAJAX(json_file, function(data)
+    loadAJAX("views/" + view, function(data)
     {
         //console.log(data);
         json = data;
+
         loadView("front");
+        //loadView("front");
         loadView("back");
+
+        animateView();
 
     }, function(xhr) { console.error(xhr); });
 });
+
+function resetView(view)
+{
+    var front = document.getElementsByClassName(view);
+
+    for (var i = 0; i < front[0].children.length; i++) {
+        front[0].children[i].remove();
+    }
+
+    /*
+    var collection = document.getElementsByTagName('canvas');
+
+    for (var i = 0, s = collection.length; i < s; i++) {
+
+        console.log(collection[i]);
+        //if(collection[i])
+            //collection[i].remove();
+    }
+    */
+};
+
+function animateView(view)
+{
+    document.gauges.forEach(function(gauge)
+    {
+        //console.log(gauge);
+
+        gauge.value = gauge.options.maxValue;
+        setTimeout(function()
+        {
+            gauge.value = gauge.options.minValue;
+            //streamAJAX(stream);
+            
+        }, gauge.options.animationDuration*1.5);
+    });
+
+    //new SVGInjector().inject(document.querySelectorAll("img.svg-inject"));
+};
 
 function loadView(view)
 {
     //console.log(json);
 
+    //resetView(view);
+
     if(view === "front")
     {
         var front = document.getElementsByClassName("front");
-        var table = document.createElement("table");
-        var tr = document.createElement("tr");
-        
-        while(front[0].children[0]) {
-            front[0].children[0].parentNode.removeChild(front[0]);
-        }
+
+        stream = "";
+        //dashboardVisible = [];
+        //dashboardHidden = [];
+
+        var table = document.getElementById("frontTable");
+        var tr = document.getElementById("frontRow");
 
         for (i in json.dashboard)
         {
-            json.dashboard[i].width = getWidth() * json.dashboard[i].width;
-            json.dashboard[i].height = getHeight() * json.dashboard[i].height;
+            json.dashboard[i].width = Math.round(getWidth() * json.dashboard[i].width);
+            json.dashboard[i].height = Math.round(getHeight() * json.dashboard[i].height);
+
+            var render = document.getElementById(json.dashboard[i].renderTo);
+            var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
+
+            if (!(td instanceof HTMLCanvasElement)) {
+                var _td = document.createElement("td");
+                _td.id = "canvasIndex" + i;
+                tr.appendChild(_td);
+            }
 
             if(json.dashboard[i].enabled)
             {
@@ -52,25 +106,57 @@ function loadView(view)
                     break;
                 }
 
-                var td = document.createElement("td");
-                var canvas = document.createElement("canvas");
-                //canvas.style.cssText = "vertical-align: top";
-                canvas.setAttribute("id", json.dashboard[i].renderTo);
-                td.appendChild(canvas);
-                tr.appendChild(td);
+                if (render instanceof HTMLCanvasElement) {
+                    
+                    //if element exists we want to verify canvasindex is correct
+                    console.log(render.parentElement.id + " > " + json.dashboard[i].index);
+
+                    render.style.display = 'block'; // show
+
+                    if(render.parentElement.id !== "canvasIndex" + json.dashboard[i].index)
+                    {
+                        console.log("index incorrect ...moving canvas");
+
+                        //render.parentElement.width = 0;
+                        render.parentNode.removeChild(render);
+
+                        td.appendChild(render);
+                    }
+
+                    render.parentElement.width = render.width;
+
+                }else{
+
+                    var canvas = document.createElement("canvas");
+                    canvas.id = json.dashboard[i].renderTo;
+
+                    var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
+                    td.width = json.dashboard[i].width;
+                    td.appendChild(canvas);
+
+                    new RadialGauge(json.dashboard[i]).draw();
+                }
 
                 dashboardVisible.push(json.dashboard[i]);
+
             }else{
-                dashboardHidden.push(json.dashboard[i]);
+
+                if (render instanceof HTMLCanvasElement) {
+                    render.style.display = 'none'; // hide
+                    render.parentElement.width = 0;
+                }else{
+                    dashboardHidden.push(json.dashboard[i]);
+                }
             }
         }
-        table.appendChild(tr);
+        //table.appendChild(tr);
         
         //var odometer = CANRead("distance");
 
         if(json.odometer)
         {
             var tr = document.createElement("tr");
+            //tr.id = "odometer";
             var td = document.createElement("td");
             td.colSpan = dashboardVisible.length;
 
@@ -82,32 +168,26 @@ function loadView(view)
             td.appendChild(canvas);
             tr.appendChild(td);
             table.appendChild(tr);
-        }
-        
-        var tr = document.createElement("tr");
-        var td = buildAlertList(json,false,12);
-        td.colSpan = dashboardVisible.length;
 
-        tr.appendChild(td);
-        table.appendChild(tr);
-        front[0].appendChild(table);
-        front[0].onclick = function () {
-            //console.log(this);
-            this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
-        };
-
-        for (i in dashboardVisible)
-        {
-            new RadialGauge(dashboardVisible[i]).draw();
-        }
-
-        if(json.odometer)
-        {
             display = new SegmentDisplay("odometer",json.odometer);
             display.draw();
             display.setValue(json.odometer.count);
             //updateOdometer(json.odometer.count);
         }
+        
+        var tr = document.createElement("tr");
+        tr.id = "alertlist";
+        var td = buildAlertList(json,false,12);
+        td.colSpan = dashboardVisible.length;
+
+        tr.appendChild(td);
+        table.appendChild(tr);
+        //front[0].appendChild(table);
+
+        front[0].onclick = function () {
+            //console.log(this);
+            this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
+        };
 
         for (i in json.sounds)
         {
@@ -125,13 +205,13 @@ function loadView(view)
                 break;
             }
         }
-
+        
     }else if (view === "back") {
+
+        var back = document.getElementsByClassName("back");
     
         var divA = document.createElement("div");
         var divB = document.createElement("div");
-        
-        var back = document.getElementsByClassName("back");
         var table = document.createElement("table");
 
         var tr = document.createElement("tr");
@@ -168,7 +248,6 @@ function loadView(view)
                 onAdd: function (evt) {
                     //evt.from;
                     evt.item.setAttribute('width', "15%");
-                    console.log(evt.item.id);
                 }
             });
         });
@@ -181,53 +260,68 @@ function loadView(view)
                     evt.item.setAttribute('width', "24%");
                 },
                 */
-                onAdd: function (evt) {
-                    //evt.from;
-                    evt.item.setAttribute('width', "20%");
-                    console.log(evt.item.id);
-                    console.log(evt.newIndex);
+                onAdd: function (event) {
+                    //event.from;
+                    event.item.setAttribute('width', "20%");
+
+                    sortView(el, event);
+
+                    //loadView("front");
                 },
-                onUpdate: function (evt) {
-                    console.log(evt.newIndex);
+                onUpdate: function (event) {
+
+                    sortView(el, event);
+
+                    loadView("front");
+
+                    saveView();
                 }
             });
         });
         
         back[0].appendChild(table);
+
         back[0].onclick = function () {
             //console.log(this);
             this.parentElement.style.cssText = "";
-
-            //TODO: Show visual effect
-            saveView();
         };
-
     }
 
-    var stream = "din_emcystop,din_ocur";
-
     //TODO: Detect idle mode and slow down stream
+    new SVGInjector().inject(document.querySelectorAll('.svg-inject'));
+};
 
-    document.gauges.forEach(function(gauge)
+function sortView(el, event)
+{
+    for (var e = 0; e < el.children.length; e++)
     {
-        //console.log(gauge);
-
-        gauge.value = gauge.options.maxValue;
-        setTimeout(function()
+        for (i in json.dashboard)
         {
-            gauge.value = gauge.options.minValue;
-            //streamAJAX(stream);
-            
-        }, gauge.options.animationDuration*1.5);
-    });
-
-    new SVGInjector().inject(document.querySelectorAll("img.svg-inject"));
+            if ("_" + json.dashboard[i].renderTo === el.children[e].id)
+            {
+                //console.log(el.children[e].id + ":" + e);
+                
+                json.dashboard[i].index = e;
+                json.dashboard[i].enabled = true;
+            }
+        }
+    }
+    //console.log(event.item.id);
+    //console.log(event.newIndex);
 };
 
 function saveView()
-{
-    //TODO:
+{   
+    console.log("saving view");
 
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'views/save.php', true);
+    xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+    xhr.onload = function () {
+        // do something to response
+        console.log(this.responseText);
+    };
+    xhr.send('view=' + view + '&json=' + json);
 };
 
 function buildAlertList(json,showAll,size)
@@ -349,12 +443,13 @@ function buildGaugeList(array,size,title)
 
     for (var i = 0; i < array.length; i++) {
         
-        array[i].renderTo = "_" + array[i].renderTo;
+        array[i].renderTo = "_" + array[i].renderTo; //set temporary id
+
         canvas.id = array[i].renderTo;
 
         back[0].appendChild(canvas);
         var gauge = new RadialGauge(array[i]).draw();
-        back[0].removeChild(canvas);
+        canvas.remove();
 
         var ctx = canvas.getContext('2d');
         var img = document.createElement("img");
@@ -362,6 +457,7 @@ function buildGaugeList(array,size,title)
         img.id = array[i].renderTo;
         img.setAttribute('width', size);
         tile_list.appendChild(img);
+        array[i].renderTo = array[i].renderTo.substr(1); //set it back
     }
     canvas = null;
 
