@@ -16,7 +16,6 @@ document.addEventListener("DOMContentLoaded", function(event)
         json = data;
 
         loadView("front");
-        //loadView("front");
         loadView("back");
 
         animateView();
@@ -24,73 +23,80 @@ document.addEventListener("DOMContentLoaded", function(event)
     }, function(xhr) { console.error(xhr); });
 });
 
-function resetView(view)
+function animateView()
 {
-    var front = document.getElementsByClassName(view);
+    document.gauges.forEach(function(gauge) {
 
-    for (var i = 0; i < front[0].children.length; i++) {
-        front[0].children[i].remove();
-    }
-
-    /*
-    var collection = document.getElementsByTagName('canvas');
-
-    for (var i = 0, s = collection.length; i < s; i++) {
-
-        console.log(collection[i]);
-        //if(collection[i])
-            //collection[i].remove();
-    }
-    */
-};
-
-function animateView(view)
-{
-    document.gauges.forEach(function(gauge)
-    {
-        //console.log(gauge);
-
-        gauge.value = gauge.options.maxValue;
-        setTimeout(function()
+        if (gauge.options.enabled == true)
         {
-            gauge.value = gauge.options.minValue;
-            //streamAJAX(stream);
-            
-        }, gauge.options.animationDuration*1.5);
+            //console.log("... animate " + gauge.options.renderTo);
+
+            gauge.value = gauge.options.maxValue;
+
+            setTimeout(function() {
+                gauge.value = gauge.options.minValue;
+                //streamAJAX(stream);
+            }, gauge.options.animationDuration*1.5);
+        }
     });
 
     //new SVGInjector().inject(document.querySelectorAll("img.svg-inject"));
 };
 
+function sizeView(view)
+{
+    for (var i = 0, l = document.gauges.length; i < l; i++) {
+
+        var gauge = document.gauges[i];
+
+        if (gauge.options.enabled == true) {
+
+            //console.log("... adjust size " + gauge.options.renderTo);
+
+            gauge.options.width = Math.round(getWidth() / dashboardVisible.length); // * gauge.options.width);
+            gauge.options.height = Math.round(getHeight() - 100) ; //dashboardVisible.length);// * gauge.options.height);
+            gauge.update();
+
+            var td = document.getElementById(gauge.options.renderTo);
+            td.parentElement.width = gauge.options.width;
+            td.parentElement.height = gauge.options.height;
+        }
+    }
+}
+
 function loadView(view)
 {
     //console.log(json);
 
-    //resetView(view);
-
     if(view === "front")
     {
-        var front = document.getElementsByClassName("front");
-
         stream = "";
-        //dashboardVisible = [];
-        //dashboardHidden = [];
+        dashboardVisible = [];
+        dashboardHidden = [];
 
+        var front = document.getElementsByClassName("front");
         var table = document.getElementById("frontTable");
         var tr = document.getElementById("frontRow");
 
         for (i in json.dashboard)
         {
-            json.dashboard[i].width = Math.round(getWidth() * json.dashboard[i].width);
-            json.dashboard[i].height = Math.round(getHeight() * json.dashboard[i].height);
-
             var render = document.getElementById(json.dashboard[i].renderTo);
-            var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
+            
+            if (!(render instanceof HTMLCanvasElement)) {
 
-            if (!(td instanceof HTMLCanvasElement)) {
-                var _td = document.createElement("td");
-                _td.id = "canvasIndex" + i;
-                tr.appendChild(_td);
+                var td = document.createElement("td");
+                td.id = "canvasIndex" + i;
+
+                var canvas = document.createElement("canvas");
+                canvas.id = json.dashboard[i].renderTo;
+
+                td.appendChild(canvas);
+                tr.appendChild(td);
+
+                json.dashboard[i].width = Math.round(getWidth() * json.dashboard[i].width);
+                json.dashboard[i].height = Math.round(getHeight() * json.dashboard[i].height);
+
+                new RadialGauge(json.dashboard[i]).draw();
             }
 
             if(json.dashboard[i].enabled)
@@ -106,8 +112,8 @@ function loadView(view)
                     break;
                 }
 
-                if (render instanceof HTMLCanvasElement) {
-                    
+                if (render instanceof HTMLCanvasElement)
+                {
                     //if element exists we want to verify canvasindex is correct
                     console.log(render.parentElement.id + " > " + json.dashboard[i].index);
 
@@ -117,24 +123,16 @@ function loadView(view)
                     {
                         console.log("index incorrect ...moving canvas");
 
-                        //render.parentElement.width = 0;
+                        render.parentElement.width = 0;
                         render.parentNode.removeChild(render);
 
+                        var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
                         td.appendChild(render);
                     }
 
-                    render.parentElement.width = render.width;
-
-                }else{
-
-                    var canvas = document.createElement("canvas");
-                    canvas.id = json.dashboard[i].renderTo;
-
-                    var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
-                    td.width = json.dashboard[i].width;
-                    td.appendChild(canvas);
-
-                    new RadialGauge(json.dashboard[i]).draw();
+                //}else{
+                    //console.log(JSON.stringify(json.dashboard[i],null, 2));
+                    //new RadialGauge(json.dashboard[i]).draw();
                 }
 
                 dashboardVisible.push(json.dashboard[i]);
@@ -142,15 +140,19 @@ function loadView(view)
             }else{
 
                 if (render instanceof HTMLCanvasElement) {
+                    console.log("...hide canvas " + json.dashboard[i].renderTo);
                     render.style.display = 'none'; // hide
                     render.parentElement.width = 0;
                 }else{
-                    dashboardHidden.push(json.dashboard[i]);
+                    canvas.style.display = 'none'; // hide
                 }
+
+                dashboardHidden.push(json.dashboard[i]);
             }
         }
-        //table.appendChild(tr);
-        
+
+        sizeView();
+
         //var odometer = CANRead("distance");
 
         if(json.odometer)
@@ -175,20 +177,32 @@ function loadView(view)
             //updateOdometer(json.odometer.count);
         }
         
-        var tr = document.createElement("tr");
-        tr.id = "alertlist";
-        var td = buildAlertList(json,false,12);
-        td.colSpan = dashboardVisible.length;
+        // ======= Alert Icons =======
+        var maxH = [];
+        for (var i = 0; i < json.dashboard.length; i++)
+            maxH.push(document.getElementById("canvasIndex" + i).height);
+        var s = (getHeight() - Math.max.apply(null,maxH));
 
-        tr.appendChild(td);
-        table.appendChild(tr);
-        //front[0].appendChild(table);
+        var alerts = document.getElementById("frontAlerts");
+        //clean old items
+        for (var i = 0, l = alerts.childNodes.length; i < l; i++)
+            alerts.childNodes[i].remove();
+
+        var td = buildAlertList(json,false, s);
+        td.colSpan = json.dashboard.length;
+
+        //fixes flip rotation for svg
+        for (var i = 0, l = td.childNodes.length; i < l; i++)
+            td.childNodes[i].style="";
+
+        alerts.appendChild(td);
+        // ===========================
 
         front[0].onclick = function () {
             //console.log(this);
             this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
         };
-
+        /*
         for (i in json.sounds)
         {
             if(json.sounds[i].play)
@@ -205,11 +219,12 @@ function loadView(view)
                 break;
             }
         }
+        */
         
     }else if (view === "back") {
 
         var back = document.getElementsByClassName("back");
-    
+
         var divA = document.createElement("div");
         var divB = document.createElement("div");
         var table = document.createElement("table");
@@ -231,7 +246,7 @@ function loadView(view)
         table.appendChild(tr);
 
         var tr = document.createElement("tr");
-        var td = buildAlertList(json,true,20);
+        var td = buildAlertList(json,true,80);
         td.height="300";
         tr.appendChild(td);
         table.appendChild(tr);
@@ -245,9 +260,12 @@ function loadView(view)
                     evt.item.setAttribute('width', "16%");
                 },
                 */
-                onAdd: function (evt) {
+                onAdd: function (event) {
                     //evt.from;
-                    evt.item.setAttribute('width', "15%");
+                    event.item.setAttribute('width', "15%");
+
+                    sortView(el, event, false);
+                    loadView("front");
                 }
             });
         });
@@ -264,16 +282,15 @@ function loadView(view)
                     //event.from;
                     event.item.setAttribute('width', "20%");
 
-                    sortView(el, event);
-
-                    //loadView("front");
-                },
-                onUpdate: function (event) {
-
-                    sortView(el, event);
-
+                    sortView(el, event, true);
                     loadView("front");
+                    saveView();
+                },
+                //onUpdate: function (event) {
+                onSort: function (event) {
 
+                    sortView(el, event, true);
+                    loadView("front");
                     saveView();
                 }
             });
@@ -284,6 +301,9 @@ function loadView(view)
         back[0].onclick = function () {
             //console.log(this);
             this.parentElement.style.cssText = "";
+            setTimeout(function(){
+                animateView(); 
+            }, 1000);
         };
     }
 
@@ -291,7 +311,7 @@ function loadView(view)
     new SVGInjector().inject(document.querySelectorAll('.svg-inject'));
 };
 
-function sortView(el, event)
+function sortView(el, event, enabled)
 {
     for (var e = 0; e < el.children.length; e++)
     {
@@ -302,7 +322,18 @@ function sortView(el, event)
                 //console.log(el.children[e].id + ":" + e);
                 
                 json.dashboard[i].index = e;
-                json.dashboard[i].enabled = true;
+                json.dashboard[i].enabled = enabled;
+                break;
+            }
+        }
+
+        for (var i = 0, l = document.gauges.length; i < l; i++)
+        {
+            var gauge = document.gauges[i];
+            if ("_" + gauge.options.renderTo == el.children[e].id) {
+                gauge.options.index = e;
+                gauge.options.enabled = enabled;
+                break;
             }
         }
     }
@@ -321,7 +352,7 @@ function saveView()
         // do something to response
         console.log(this.responseText);
     };
-    xhr.send('view=' + view + '&json=' + json);
+    xhr.send('view=' + view + '&json=' + JSON.stringify(json));
 };
 
 function buildAlertList(json,showAll,size)
@@ -334,14 +365,14 @@ function buildAlertList(json,showAll,size)
         if(json.alerts[i].enabled || showAll) {
             var span = document.createElement("span");
             var svg = document.createElement("img");
-            var x = getWidth()/size/2;
+            var x = size / 2;
 
             svg.id = json.alerts[i].id;
             svg.dataset.color = json.alerts[i].color;
             svg.classList.add("svg-inject");
             svg.classList.add("svg-grey");
-            svg.style.width = getWidth()/size + "px";
-            svg.style.height = getWidth()/size + "px";
+            svg.style.width = size + "px";
+            svg.style.height = size + "px";
             svg.src = "img/" + json.alerts[i].id + ".svg";
             //svg.setAttribute("data-fallback", "img/" + json.alerts[i].id + ".png");
             span.style.position = "relative"; 
@@ -439,14 +470,16 @@ function buildGaugeList(array,size,title)
     }
     
     var back = document.getElementsByClassName("back");
-    var canvas = document.createElement("canvas");
-
+    
     for (var i = 0; i < array.length; i++) {
-        
+
+        var e = array[i].enabled;
+
+        array[i].enabled = false; //does not put these into active gauge list
         array[i].renderTo = "_" + array[i].renderTo; //set temporary id
 
+        var canvas = document.createElement("canvas");
         canvas.id = array[i].renderTo;
-
         back[0].appendChild(canvas);
         var gauge = new RadialGauge(array[i]).draw();
         canvas.remove();
@@ -457,9 +490,11 @@ function buildGaugeList(array,size,title)
         img.id = array[i].renderTo;
         img.setAttribute('width', size);
         tile_list.appendChild(img);
-        array[i].renderTo = array[i].renderTo.substr(1); //set it back
+
+        //set options back
+        array[i].enabled = e;
+        array[i].renderTo = array[i].renderTo.substr(1);
     }
-    canvas = null;
 
     tile.appendChild(tile_list);
 
@@ -549,19 +584,19 @@ function loadAJAX(path, success, error)
 function getWidth() {
   return Math.max(
     document.body.scrollWidth,
-    document.documentElement.scrollWidth,
-    document.body.offsetWidth,
-    document.documentElement.offsetWidth,
-    document.documentElement.clientWidth
+    //document.documentElement.scrollWidth,
+    //document.body.offsetWidth,
+    //document.documentElement.offsetWidth,
+    //document.documentElement.clientWidth
   );
 };
 
 function getHeight() {
   return Math.max(
-    document.body.scrollHeight,
-    document.documentElement.scrollHeight,
-    document.body.offsetHeight,
-    document.documentElement.offsetHeight,
+    //document.body.scrollHeight,
+    //document.documentElement.scrollHeight,
+    //document.body.offsetHeight,
+    //document.documentElement.offsetHeight,
     document.documentElement.clientHeight
   );
 };
