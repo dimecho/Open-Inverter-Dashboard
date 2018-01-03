@@ -5,18 +5,21 @@ var blink_battery;
 var odometer_count;
 var dashboardVisible = [];
 var dashboardHidden = [];
-var stream = "din_emcystop,din_ocur";
+var stream = "";
 
 //window.addEventListener('load', function()
 document.addEventListener("DOMContentLoaded", function(event)
 {
-    loadAJAX("views/" + view, function(data)
+    loadView("views/" + view, function(data)
     {
         //console.log(data);
         json = data;
 
-        loadView("front");
-        loadView("back");
+        document.body.style.backgroundImage = "url('views/bg/" + data.background + "')"; 
+
+        buildView("front");
+        renderView("front");
+        renderView("back");
 
         animateView();
 
@@ -35,7 +38,7 @@ function animateView()
 
             setTimeout(function() {
                 gauge.value = gauge.options.minValue;
-                //streamAJAX(stream);
+                //streamView();
             }, gauge.options.animationDuration*1.5);
         }
     });
@@ -43,7 +46,7 @@ function animateView()
     //new SVGInjector().inject(document.querySelectorAll("img.svg-inject"));
 };
 
-function sizeView(view)
+function sizeView()
 {
     for (var i = 0, l = document.gauges.length; i < l; i++) {
 
@@ -62,42 +65,50 @@ function sizeView(view)
             td.parentElement.height = gauge.options.height;
         }
     }
-}
+};
 
-function loadView(view)
+function buildView(view)
+{
+    if(view === "front")
+    {
+        var front = document.getElementsByClassName("front");
+        var table = document.getElementById("frontTable");
+        var tr = document.getElementById("frontRow");
+
+        for (var i = 0, l = json.dashboard.length; i < l; i++)
+        {
+            var td = document.getElementById( "canvasIndex" + i);
+
+            if (!(td instanceof HTMLCanvasElement)) {
+
+                var td = document.createElement("td");
+                td.id = "canvasIndex" + i;
+                tr.appendChild(td);
+
+                json.dashboard[i].width = Math.round(getWidth()/3);
+                json.dashboard[i].height = json.dashboard[i].width;
+            }
+        }
+    }
+};
+
+function renderView(view)
 {
     //console.log(json);
 
     if(view === "front")
     {
-        stream = "";
+        stream = "din_emcystop,din_ocur";
         dashboardVisible = [];
         dashboardHidden = [];
 
         var front = document.getElementsByClassName("front");
         var table = document.getElementById("frontTable");
-        var tr = document.getElementById("frontRow");
 
-        for (i in json.dashboard)
+        for (var i = 0, l = json.dashboard.length; i < l; i++)
         {
             var render = document.getElementById(json.dashboard[i].renderTo);
-            
-            if (!(render instanceof HTMLCanvasElement)) {
-
-                var td = document.createElement("td");
-                td.id = "canvasIndex" + i;
-
-                var canvas = document.createElement("canvas");
-                canvas.id = json.dashboard[i].renderTo;
-
-                td.appendChild(canvas);
-                tr.appendChild(td);
-
-                json.dashboard[i].width = Math.round(getWidth() * json.dashboard[i].width);
-                json.dashboard[i].height = Math.round(getHeight() * json.dashboard[i].height);
-
-                new RadialGauge(json.dashboard[i]).draw();
-            }
+            var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
 
             if(json.dashboard[i].enabled)
             {
@@ -117,22 +128,23 @@ function loadView(view)
                     //if element exists we want to verify canvasindex is correct
                     console.log(render.parentElement.id + " > " + json.dashboard[i].index);
 
-                    render.style.display = 'block'; // show
-
                     if(render.parentElement.id !== "canvasIndex" + json.dashboard[i].index)
                     {
                         console.log("index incorrect ...moving canvas");
 
                         render.parentElement.width = 0;
-                        render.parentNode.removeChild(render);
-
-                        var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
+                        render.remove();
                         td.appendChild(render);
                     }
 
-                //}else{
+                }else{
                     //console.log(JSON.stringify(json.dashboard[i],null, 2));
-                    //new RadialGauge(json.dashboard[i]).draw();
+
+                    var canvas = document.createElement("canvas");
+                    canvas.id = json.dashboard[i].renderTo;
+                    td.appendChild(canvas);
+
+                    new RadialGauge(json.dashboard[i]).draw();
                 }
 
                 dashboardVisible.push(json.dashboard[i]);
@@ -141,10 +153,8 @@ function loadView(view)
 
                 if (render instanceof HTMLCanvasElement) {
                     console.log("...hide canvas " + json.dashboard[i].renderTo);
-                    render.style.display = 'none'; // hide
                     render.parentElement.width = 0;
-                }else{
-                    canvas.style.display = 'none'; // hide
+                    render.remove();
                 }
 
                 dashboardHidden.push(json.dashboard[i]);
@@ -184,11 +194,9 @@ function loadView(view)
         var s = (getHeight() - Math.max.apply(null,maxH));
 
         var alerts = document.getElementById("frontAlerts");
-        //clean old items
-        for (var i = 0, l = alerts.childNodes.length; i < l; i++)
-            alerts.childNodes[i].remove();
+        alerts.innerHTML = "";
 
-        var td = buildAlertList(json,false, s);
+        var td = buildAlertList(false, s);
         td.colSpan = json.dashboard.length;
 
         //fixes flip rotation for svg
@@ -246,7 +254,7 @@ function loadView(view)
         table.appendChild(tr);
 
         var tr = document.createElement("tr");
-        var td = buildAlertList(json,true,80);
+        var td = buildAlertList(true,80);
         td.height="300";
         tr.appendChild(td);
         table.appendChild(tr);
@@ -265,7 +273,7 @@ function loadView(view)
                     event.item.setAttribute('width', "15%");
 
                     sortView(el, event, false);
-                    loadView("front");
+                    renderView("front");
                 }
             });
         });
@@ -283,14 +291,14 @@ function loadView(view)
                     event.item.setAttribute('width', "20%");
 
                     sortView(el, event, true);
-                    loadView("front");
+                    renderView("front");
                     saveView();
                 },
                 //onUpdate: function (event) {
                 onSort: function (event) {
 
                     sortView(el, event, true);
-                    loadView("front");
+                    renderView("front");
                     saveView();
                 }
             });
@@ -341,33 +349,21 @@ function sortView(el, event, enabled)
     //console.log(event.newIndex);
 };
 
-function saveView()
-{   
-    console.log("saving view");
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', 'views/save.php', true);
-    xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-    xhr.onload = function () {
-        // do something to response
-        console.log(this.responseText);
-    };
-    xhr.send('view=' + view + '&json=' + JSON.stringify(json));
-};
-
-function buildAlertList(json,showAll,size)
+function buildAlertList(showAll,size)
 {
     var td = document.createElement("td");
 
     for (i in json.alerts)
     {
         //console.log(json.alerts[i].svg);
-        if(json.alerts[i].enabled || showAll) {
+        if(json.alerts[i].enabled == true || showAll) {
             var span = document.createElement("span");
             var svg = document.createElement("img");
             var x = size / 2;
 
-            svg.id = json.alerts[i].id;
+            if(showAll)
+                x = size / 3;
+
             svg.dataset.color = json.alerts[i].color;
             svg.classList.add("svg-inject");
             svg.classList.add("svg-grey");
@@ -377,55 +373,190 @@ function buildAlertList(json,showAll,size)
             //svg.setAttribute("data-fallback", "img/" + json.alerts[i].id + ".png");
             span.style.position = "relative"; 
             span.style.zIndex = "1";
+            span.id = "alert_" + json.alerts[i].id;
             span.appendChild(svg);
+
             span.onclick = function (e) {
                 //console.log(this);
                 //console.log(this.children[1].src);
                 e.preventDefault();
                 e.stopPropagation();
 
+                var yesno = false;
+
                 if(this.children[1].src.indexOf("disabled") !== -1)
                 {
+                    yesno = true;
+
                     this.children[1].src = "img/enabled.svg";
 
-                    if(this.children[0].id =="wifi")
-                    {
-                        var h = document.getElementById("lightboxTitle");
-                        var b = document.getElementById("lightboxBody");
+                    var lightboxBody = document.getElementById("lightboxBody");
+                    var lightboxTitle = document.getElementById("lightboxTitle");
+                    lightboxBody.innerHTML = ""; //empty
 
+                    if(this.id =="alert_background")
+                    { 
+                        var ul = document.createElement("ul");
+                        ul.classList.add("slides");
+
+                        //TODO: loop through all background
+                        loadView("views/bg/index.json", function(data)
+                        {
+                            var nav_dots = document.createElement("li");
+                            nav_dots.classList.add("nav-dots");
+
+                            for (var u = 0; u < data.index.length; u++)
+                            {
+                                var div = document.createElement("div");
+                                var li = document.createElement("li");
+                                var nav = document.createElement("div");
+                                var label_prev = document.createElement("label");
+                                var label_next = document.createElement("label");
+                                var label = document.createElement("label");
+                                var input = document.createElement("input");
+                                var img = document.createElement("img");
+
+                                div.classList.add("slide");
+                                li.classList.add("slide-container");
+                                nav.classList.add("nav");
+                                label.classList.add("nav-dot");
+                                label_prev.classList.add("prev");
+                                label_next.classList.add("next");
+                                
+                                var input = document.createElement("input");
+                                input.type = "radio";
+                                input.name = "radio-btn";
+                                input.id = "img-" + u;
+                                input.checked = true;
+
+                                img.src = "views/bg/" + data.index[u].file;
+                                div.appendChild(img);
+                                li.appendChild(div);
+
+                                label.setAttribute("for", "img-" + u);
+                                label.id = "img-dot-" + u;
+                                
+                                let prev = (u-1);
+                                if(u == 0)
+                                    prev = (data.index.length-1);
+                                label_prev.innerHTML = "&#x2039";
+                                label_prev.setAttribute("for", "img-" + prev);
+                                nav.appendChild(label_prev);
+
+                                let next = (u+1);
+                                if(u == data.index.length-1)
+                                    next = 0;
+                                label_next.innerHTML = "&#x203a;";
+                                label_next.setAttribute("for", "img-" + next);
+                                nav.appendChild(label_next);
+
+                                li.appendChild(nav);
+                                ul.appendChild(input);
+                                ul.appendChild(li);
+
+                                img.onclick = function (e) {
+                                    console.log(this.src);
+                                    json.background = this.src;
+                                    document.body.style.backgroundImage = "url('views/bg/" + this.src + "')";
+                                    window.location = "#close";
+                                    saveView();
+                                };
+                            }
+                            ul.appendChild(nav_dots);
+                        });
+
+                        lightboxBody.appendChild(ul);
+
+                        window.location = "#openModal";
+                    }
+                    else if(this.id =="alert_rfid")
+                    {
+                        var rfid = document.createElement("textarea");
+                        
+                        lightboxTitle.innerHTML = "RFID Unlock";
+                        rfid.rows = "20";
+
+                        rfid.placeholder = "Unlock Codes (MIFARE Protocol 13.56 Mhz)";
+
+                        lightboxBody.appendChild(rfid);
+
+                        window.location = "#openModal";
+                    }
+                    else if(this.id =="alert_wifi-ap")
+                    {
+                        var ssid = document.createElement("input");
+                        var ip = document.createElement("input");
+                        var password = document.createElement("input");
+
+                        lightboxTitle.innerHTML = "WiFi Access Point";
+                        ssid.type = "text";
+                        ip.type = "text";
+                        password.type = "password";
+
+                        ssid.placeholder = "Access Point Name (SSID)";
+                        ip.placeholder = "Access Point IP (/24)";
+                        password.placeholder = "Access Point Password (WPA2)";
+
+                        lightboxBody.appendChild(ssid);
+                        lightboxBody.appendChild(ip);
+                        lightboxBody.appendChild(password);
+
+                        window.location = "#openModal";
+                    }
+                    else if(this.id =="alert_wifi-alarm")
+                    {
                         var email = document.createElement("input");
                         var smtp = document.createElement("input");
                         var username = document.createElement("input");
                         var password = document.createElement("input");
-                        var save = document.createElement("button");
 
-                        save.type = "submit";
-                        save.innerHTML = "Save";
-                        save.classList.add("btn");
-                        save.classList.add("btn-primary");
-
-                        b.innerHTML = "";
-                        h.innerHTML = "WiFi";
+                        lightboxTitle.innerHTML = "WiFi Alarm Notification";
                         email.type = "text";
                         smtp.type = "text";
                         username.type = "text";
-                        password.type = "text";
-                        email.classList.add("form-control");
-                        email.classList.add("col-10");
-                        email.setAttribute("value", "Email");
-                        email.setAttribute("placeholder", "Email");
+                        password.type = "password";
 
-                        b.appendChild(email);
-                        b.appendChild(smtp);
-                        b.appendChild(username);
-                        b.appendChild(password);
-                        b.appendChild(save);
+                        email.placeholder = "Email";
+                        smtp.placeholder = "Email Server (SMTP)";
+                        username.placeholder = "Email Username";
+                        password.placeholder = "Email Password";
+
+                        email.value = json.wifi.email;
+                        smtp.value = json.wifi.smtp;
+                        username.value = json.wifi.username;
+                        password.value = json.wifi.password;
+
+                        lightboxBody.appendChild(email);
+                        lightboxBody.appendChild(smtp);
+                        lightboxBody.appendChild(username);
+                        lightboxBody.appendChild(password);
 
                         window.location = "#openModal";
+
+                        save.onclick = function (e) {
+
+                            json.wifi.email = email.value;
+                            json.wifi.smtp = smtp.value;
+                            json.wifi.username = username.value;
+                            json.wifi.password = password.value;
+
+                            window.location = "#close";
+                        };
                     }
 
                 }else{
                     this.children[1].src = "img/disabled.svg";
+                }
+
+                console.log("...set alert '" + this.id.substr(6) + "' " + yesno);
+
+                for (i in json.alerts)
+                {
+                    if(json.alerts.id === this.id.substr(6))
+                    {
+                        json.alerts[i].enabled = yesno;
+                        break;
+                    }
                 }
             };
 
@@ -491,6 +622,47 @@ function buildGaugeList(array,size,title)
         img.setAttribute('width', size);
         tile_list.appendChild(img);
 
+        img.onclick = function (e) {
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            var lightboxBody = document.getElementById("lightboxBody");
+            lightboxBody.innerHTML = ""; //empty
+
+            var code = document.createElement("textarea");
+            code.rows = "20";
+            code.id = "code" + this.id;
+
+            for (i in json.dashboard)
+            {
+                if("_" + json.dashboard[i].renderTo === this.id)
+                {
+                    code.value = JSON.stringify(json.dashboard[i], null, 2);
+                    break;
+                }
+            }
+            lightboxBody.appendChild(code);
+
+            window.location = "#openModal";
+
+            code.onchange = function (e) {
+
+                //console.log(this.value);
+
+                for (i in json.dashboard)
+                {
+                    if("code_" + json.dashboard[i].renderTo === this.id)
+                    {
+                        json.dashboard[i] = JSON.parse(this.value);
+                        break;
+                    }
+                }
+                renderView("front");
+                saveView();
+            };
+        };
+
         //set options back
         array[i].enabled = e;
         array[i].renderTo = array[i].renderTo.substr(1);
@@ -501,14 +673,20 @@ function buildGaugeList(array,size,title)
     return tile;
 };
 
-function streamAJAX(path)
+function streamView(path)
 {
+    var _alert = document.getElementsByClassName("alert");
+
 	var xhr = new XMLHttpRequest();
-	var _alert = document.getElementsByClassName("alert");
+    xhr.open('GET', "serial.php?stream=" + stream, true);
+    xhr.send();
+	
 	xhr.onreadystatechange = function()
 	{
-		//console.log("State change: "+ xhr.readyState);
+		console.log("State change: "+ xhr.readyState);
+
 		if(xhr.readyState == 3) {
+            
 			var newData = xhr.response.substr(xhr.seenBytes);
 			if(newData !== "Unknown command sequence")
 			{
@@ -551,14 +729,15 @@ function streamAJAX(path)
 	xhr.addEventListener("error", function(e) {
 	  console.log("error: " +e);
 	});
-	
-	xhr.open('GET', "serial.php?stream=" + path, true);
-	xhr.send();
 };
 
-function loadAJAX(path, success, error)
+function loadView(path, success, error)
 {
     var xhr = new XMLHttpRequest();
+    xhr.open("GET", path, true);
+    //xhr.setRequestHeader('Content-Type', 'application/json'); 
+    xhr.send();
+
     xhr.onreadystatechange = function()
     {
         if (xhr.readyState === XMLHttpRequest.DONE) {
@@ -575,10 +754,20 @@ function loadAJAX(path, success, error)
             }
         }
     };
-   
-    xhr.open("GET", path, true);
-    //xhr.setRequestHeader('Content-Type', 'application/json'); 
-    xhr.send();
+};
+
+function saveView()
+{   
+    console.log("saving view");
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'views/save.php', true);
+    xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+    xhr.onload = function () {
+        // do something to response
+        console.log(this.responseText);
+    };
+    xhr.send('view=' + view + '&json=' + JSON.stringify(json));
 };
 
 function getWidth() {

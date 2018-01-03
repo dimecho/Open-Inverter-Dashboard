@@ -19,11 +19,7 @@
         $_SESSION["serial"] = 1;
     }
 	
-	if(isset($_GET["phpinfo"]))
-	{
-		phpinfo();
-	}
-	else if(isset($_GET["get"]))
+	if(isset($_GET["get"]))
 	{
 		if(strpos($_GET["get"],",") !== false) //Multi-value support
 		{
@@ -42,7 +38,7 @@
 		//ini_set('zlib.output_compression', 0);
 		//ini_set('output_buffering', 0);
 		
-		header('Content-Type: text/plain; charset=utf-8');
+		header('Content-Type: text/plain');
 		
 		ob_end_flush();
 		for ($i = 0; $i<10; $i++){
