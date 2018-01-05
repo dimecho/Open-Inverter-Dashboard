@@ -273,48 +273,68 @@
             "colorValueBoxRectEnd": "#333"
         }
     ],
-    "alerts": [
-        {
-            "id": "background",
+    "odometer":{
+        "pattern": "######.##",
+        "count": "200000.00",
+        "unit": "KM",
+        "displayAngle": 6,
+        "digitHeight": 20,
+        "digitWidth": 14,
+        "digitDistance": 2.5,
+        "segmentWidth": 2,
+        "segmentDistance": 0.3,
+        "segmentCount": 7,
+        "cornerType": 3,
+        "colorOn": "#e95d0f",
+        "colorOff": "#4b1e05"
+    },
+    "alerts":{
+        "background": {
+            "show": false,
             "enabled": false,
             "color": "svg-grey"
         },
-        {
-            "id": "battery",
+        "odometer": {
+            "show": false,
+            "enabled": false,
+            "color": "svg-grey"
+        },
+        "battery": {
+            "show": true,
             "enabled": true,
             "color": "svg-green"
         },
-        {
-            "id": "temp",
+        "temp": {
+            "show": true,
             "enabled": true,
             "color": "svg-red"
         },
-        {
-            "id": "emergency",
+        "emergency": {
+            "show": true,
             "enabled": true,
             "color": "svg-orange"
         },
-        {
-            "id": "sound",
+        "sound": {
+            "show": true,
             "enabled": false,
             "color": "svg-blue"
         },
-        {
-            "id": "rfid",
+        "rfid": {
+            "show": true,
             "enabled": false,
             "color": "svg-blue"
         },
-        {
-            "id": "wifi-ap",
+        "wifi-ap": {
+            "show": true,
             "enabled": false,
             "color": "svg-blue"
         },
-        {
-            "id": "wifi-alarm",
+        "wifi-alarm": {
+            "show": true,
             "enabled": false,
             "color": "svg-blue"
         }
-    ],
+    },
     "sounds": [
         {
             "id": "deepengine",

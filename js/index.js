@@ -1,11 +1,15 @@
 var json = "";
+var stream = "";
 var view = "1.json";
 var blink_emergency;
 var blink_battery;
-var odometer_count;
+var odometer;
+var odometerTimer;
 var dashboardVisible = [];
 var dashboardHidden = [];
-var stream = "";
+var dashboardHeight;
+var adjustHeight;
+var streamPaused = true;
 
 //window.addEventListener('load', function()
 document.addEventListener("DOMContentLoaded", function(event)
@@ -19,7 +23,6 @@ document.addEventListener("DOMContentLoaded", function(event)
 
         buildView("front");
         renderView("front");
-        renderView("back");
 
         animateView();
 
@@ -46,35 +49,129 @@ function animateView()
     //new SVGInjector().inject(document.querySelectorAll("img.svg-inject"));
 };
 
-function sizeView()
+function sizeView(view)
 {
-    for (var i = 0, l = document.gauges.length; i < l; i++) {
+    if(view === "front")
+    {
+        var h = 100; //TODO: calculate dynamically
+        adjustHeight = h;
+        dashboardHeight = (getHeight() - adjustHeight);
 
-        var gauge = document.gauges[i];
+        console.log("dashboardHeight: " + dashboardHeight);
 
-        if (gauge.options.enabled == true) {
+        if(json.alerts.odometer.enabled === true)
+            h *=2;
 
-            //console.log("... adjust size " + gauge.options.renderTo);
+        for (var i = 0, l = document.gauges.length; i < l; i++) {
 
-            gauge.options.width = Math.round(getWidth() / dashboardVisible.length); // * gauge.options.width);
-            gauge.options.height = Math.round(getHeight() - 100) ; //dashboardVisible.length);// * gauge.options.height);
-            gauge.update();
+            var gauge = document.gauges[i];
+            //console.log(gauge);
 
-            var td = document.getElementById(gauge.options.renderTo);
-            td.parentElement.width = gauge.options.width;
-            td.parentElement.height = gauge.options.height;
+            if (gauge.options.enabled == true) {
+
+                //console.log("... adjust size " + gauge.options.renderTo);
+
+                gauge.options.width = Math.round(getWidth() / dashboardVisible.length); // * gauge.options.width);
+                gauge.options.height = Math.round(getHeight() - h) ; //dashboardVisible.length);// * gauge.options.height);
+                gauge.update();
+
+                var td = document.getElementById(gauge.options.renderTo);
+                td.parentElement.width = gauge.options.width;
+                td.parentElement.height = gauge.options.height;
+            //}else {
+            }
         }
+
+        /*
+        var maxH = [];
+        for (var i = 0; i < json.dashboard.length; i++)
+        {
+            var t = document.getElementById("canvasIndex" + i);
+            console.log("canvasIndex" + i + " height=" + t.height);
+            maxH.push(t.height);
+        }
+        dashboardHeight = Math.max.apply(null,maxH);
+        */
+
+    }else if (view === "back") {
+        var divA = document.getElementById("backAvailable");
+        var divB = document.getElementById("backSelected");
+        console.log("set back " + dashboardHeight);
+        divB.height = dashboardHeight;
     }
+};
+
+function buildOdometer(view)
+{
+    //var odometer = CANRead("distance");
+
+    clearTimeout(odometerTimer);
+    
+    var tr = document.getElementById(view + "Odometer");
+    tr.innerHTML = "";
+
+    console.log("... build odometer " + json.alerts.odometer.enabled);
+
+    if(json.alerts.odometer.enabled === true)
+    {
+        var td = document.createElement("td");
+        td.colSpan = json.dashboard.length;
+
+        var canvasOdometer = document.createElement("canvas");
+        canvasOdometer.id = "odometer";
+        //canvasOdometer.style="position:relative; top:-" + (getHeight() - dashboardHeight) + "px;";
+        canvasOdometer.height = adjustHeight-10;
+
+        td.appendChild(canvasOdometer);
+        tr.appendChild(td);
+
+        odometer = new SegmentDisplay("odometer");
+        odometer.pattern = json.odometer.pattern;
+        odometer.colorOn = json.odometer.colorOn;
+        odometer.colorOff = json.odometer.colorOff;
+        odometer.draw();
+        odometer.setValue(json.odometer.count);
+
+        updateOdometer(parseFloat(json.odometer.count));
+    }
+};
+
+function buildAlerts(view)
+{
+    //console.log("alert icon height = " + adjustHeight + " | average view height = " + dashboardHeight);
+
+    var alerts = document.getElementById(view + "Alerts");
+    alerts.innerHTML = "";
+
+    if(view === "front")
+    {
+        var td = buildAlertList(false, adjustHeight - 20);
+        td.colSpan = json.dashboard.length;
+
+        //fixes flip rotation for svg
+        for (var i = 0, l = td.childNodes.length; i < l; i++)
+            td.childNodes[i].style="";
+
+    }else if (view === "back") {
+
+        var td = buildAlertList(true, adjustHeight / 2);
+    }
+
+    alerts.appendChild(td);
+
+    new SVGInjector().inject(document.querySelectorAll('.svg-inject'));
 };
 
 function buildView(view)
 {
+    var side = document.getElementsByClassName(view);
+    var table = document.createElement("table");
+    var tr = document.createElement("tr");
+
+    table.id = view + "Table";
+
     if(view === "front")
     {
-        var front = document.getElementsByClassName("front");
-        var table = document.getElementById("frontTable");
-        var tr = document.getElementById("frontRow");
-
         for (var i = 0, l = json.dashboard.length; i < l; i++)
         {
             var td = document.getElementById( "canvasIndex" + i);
@@ -89,7 +186,56 @@ function buildView(view)
                 json.dashboard[i].height = json.dashboard[i].width;
             }
         }
+
+        side[0].onclick = function () {
+            buildView("back");
+            renderView("back");
+            this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
+        };
+
+    }else if (view === "back") {
+
+        var divA = document.createElement("div");
+        var divB = document.createElement("div");
+        var table = document.createElement("table");
+
+        divA.id = view + "Available";
+        divB.id = view + "Selected";
+
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        //td.height =  getHeight() / 5;
+        td.appendChild(divA);
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        td.height = dashboardHeight;
+        td.appendChild(divB);
+        tr.appendChild(td);
+
+        side[0].onclick = function () {
+            //console.log(this);
+            this.parentElement.style.cssText = "";
+            setTimeout(function(){
+                side[0].innerHTML = "";
+                animateView(); 
+            }, 1000);
+        };
     }
+
+    table.appendChild(tr);
+
+    var tr = document.createElement("tr");
+    tr.id = view + "Odometer";
+    table.appendChild(tr);
+
+    var tr = document.createElement("tr");
+    tr.id = view + "Alerts";
+    table.appendChild(tr);
+
+    side[0].appendChild(table);
 };
 
 function renderView(view)
@@ -103,16 +249,15 @@ function renderView(view)
         dashboardHidden = [];
 
         var front = document.getElementsByClassName("front");
-        var table = document.getElementById("frontTable");
 
         for (var i = 0, l = json.dashboard.length; i < l; i++)
         {
             var render = document.getElementById(json.dashboard[i].renderTo);
-            var td = document.getElementById( "canvasIndex" + json.dashboard[i].index);
+            var td = document.getElementById("canvasIndex" + json.dashboard[i].index);
 
             if(json.dashboard[i].enabled)
             {
-                console.log(json.dashboard[i].renderTo);
+                //console.log(json.dashboard[i].renderTo);
 
                 switch (json.dashboard[i].renderTo) {
                     case "battery":
@@ -126,7 +271,7 @@ function renderView(view)
                 if (render instanceof HTMLCanvasElement)
                 {
                     //if element exists we want to verify canvasindex is correct
-                    console.log(render.parentElement.id + " > " + json.dashboard[i].index);
+                    //console.log(render.parentElement.id + " > " + json.dashboard[i].index);
 
                     if(render.parentElement.id !== "canvasIndex" + json.dashboard[i].index)
                     {
@@ -152,7 +297,7 @@ function renderView(view)
             }else{
 
                 if (render instanceof HTMLCanvasElement) {
-                    console.log("...hide canvas " + json.dashboard[i].renderTo);
+                    //console.log("...hide canvas " + json.dashboard[i].renderTo);
                     render.parentElement.width = 0;
                     render.remove();
                 }
@@ -161,55 +306,10 @@ function renderView(view)
             }
         }
 
-        sizeView();
+        sizeView(view);
 
-        //var odometer = CANRead("distance");
+        buildOdometer(view);
 
-        if(json.odometer)
-        {
-            var tr = document.createElement("tr");
-            //tr.id = "odometer";
-            var td = document.createElement("td");
-            td.colSpan = dashboardVisible.length;
-
-            var canvas = document.createElement("canvas");
-            canvas.id = "odometer";
-            canvas.height = 32;
-            canvas.width = 200;
-
-            td.appendChild(canvas);
-            tr.appendChild(td);
-            table.appendChild(tr);
-
-            display = new SegmentDisplay("odometer",json.odometer);
-            display.draw();
-            display.setValue(json.odometer.count);
-            //updateOdometer(json.odometer.count);
-        }
-        
-        // ======= Alert Icons =======
-        var maxH = [];
-        for (var i = 0; i < json.dashboard.length; i++)
-            maxH.push(document.getElementById("canvasIndex" + i).height);
-        var s = (getHeight() - Math.max.apply(null,maxH));
-
-        var alerts = document.getElementById("frontAlerts");
-        alerts.innerHTML = "";
-
-        var td = buildAlertList(false, s);
-        td.colSpan = json.dashboard.length;
-
-        //fixes flip rotation for svg
-        for (var i = 0, l = td.childNodes.length; i < l; i++)
-            td.childNodes[i].style="";
-
-        alerts.appendChild(td);
-        // ===========================
-
-        front[0].onclick = function () {
-            //console.log(this);
-            this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
-        };
         /*
         for (i in json.sounds)
         {
@@ -231,33 +331,11 @@ function renderView(view)
         
     }else if (view === "back") {
 
-        var back = document.getElementsByClassName("back");
+        var divA = document.getElementById("backAvailable");
+        var divB = document.getElementById("backSelected");
 
-        var divA = document.createElement("div");
-        var divB = document.createElement("div");
-        var table = document.createElement("table");
-
-        var tr = document.createElement("tr");
-        var td = document.createElement("td");
         divA.appendChild(buildGaugeList(dashboardHidden,"15%"));
-        td.appendChild(divA);
-        tr.appendChild(td);
-        table.appendChild(tr);
-
-        var tr = document.createElement("tr");
-        var td = document.createElement("td");
-        var t = document.createElement("table");
         divB.appendChild(buildGaugeList(dashboardVisible,"20%"));
-        td.height="400";
-        td.appendChild(divB);
-        tr.appendChild(td);
-        table.appendChild(tr);
-
-        var tr = document.createElement("tr");
-        var td = buildAlertList(true,80);
-        td.height="300";
-        tr.appendChild(td);
-        table.appendChild(tr);
 
         [].forEach.call(divA.getElementsByClassName('tile__list'), function (el){
             Sortable.create(el, {
@@ -303,20 +381,11 @@ function renderView(view)
                 }
             });
         });
-        
-        back[0].appendChild(table);
 
-        back[0].onclick = function () {
-            //console.log(this);
-            this.parentElement.style.cssText = "";
-            setTimeout(function(){
-                animateView(); 
-            }, 1000);
-        };
+        sizeView(view);
     }
-
-    //TODO: Detect idle mode and slow down stream
-    new SVGInjector().inject(document.querySelectorAll('.svg-inject'));
+    
+    buildAlerts(view);
 };
 
 function sortView(el, event, enabled)
@@ -353,10 +422,11 @@ function buildAlertList(showAll,size)
 {
     var td = document.createElement("td");
 
-    for (i in json.alerts)
+    for (var key in json.alerts)
     {
         //console.log(json.alerts[i].svg);
-        if(json.alerts[i].enabled == true || showAll) {
+        if((json.alerts[key].show == true && json.alerts[key].enabled == true) || showAll) {
+            
             var span = document.createElement("span");
             var svg = document.createElement("img");
             var x = size / 2;
@@ -364,16 +434,16 @@ function buildAlertList(showAll,size)
             if(showAll)
                 x = size / 3;
 
-            svg.dataset.color = json.alerts[i].color;
+            svg.dataset.color = json.alerts[key].color;
             svg.classList.add("svg-inject");
             svg.classList.add("svg-grey");
             svg.style.width = size + "px";
             svg.style.height = size + "px";
-            svg.src = "img/" + json.alerts[i].id + ".svg";
+            svg.src = "img/" + key + ".svg";
             //svg.setAttribute("data-fallback", "img/" + json.alerts[i].id + ".png");
             span.style.position = "relative"; 
             span.style.zIndex = "1";
-            span.id = "alert_" + json.alerts[i].id;
+            span.id = "alert_" + key;
             span.appendChild(svg);
 
             span.onclick = function (e) {
@@ -382,11 +452,9 @@ function buildAlertList(showAll,size)
                 e.preventDefault();
                 e.stopPropagation();
 
-                var yesno = false;
-
                 if(this.children[1].src.indexOf("disabled") !== -1)
                 {
-                    yesno = true;
+                    json.alerts[this.id.substr(6)].enabled = true;
 
                     this.children[1].src = "img/enabled.svg";
 
@@ -395,7 +463,7 @@ function buildAlertList(showAll,size)
                     lightboxBody.innerHTML = ""; //empty
 
                     if(this.id =="alert_background")
-                    { 
+                    {
                         var ul = document.createElement("ul");
                         ul.classList.add("slides");
 
@@ -455,7 +523,7 @@ function buildAlertList(showAll,size)
                                 ul.appendChild(li);
 
                                 img.onclick = function (e) {
-                                    console.log(this.src);
+                                    //console.log(this.src);
                                     json.background = this.src;
                                     document.body.style.backgroundImage = "url('views/bg/" + this.src + "')";
                                     window.location = "#close";
@@ -469,16 +537,22 @@ function buildAlertList(showAll,size)
 
                         window.location = "#openModal";
                     }
+                    else if(this.id =="alert_odometer")
+                    {
+                        var textarea = document.createElement("textarea");
+                        textarea.rows = "20";
+                        textarea.value = JSON.stringify(json.odometer, null, 2);
+                        lightboxBody.appendChild(textarea);
+
+                        window.location = "#openModal";
+                    }
                     else if(this.id =="alert_rfid")
                     {
-                        var rfid = document.createElement("textarea");
-                        
+                        var textarea = document.createElement("textarea");
                         lightboxTitle.innerHTML = "RFID Unlock";
-                        rfid.rows = "20";
-
-                        rfid.placeholder = "Unlock Codes (MIFARE Protocol 13.56 Mhz)";
-
-                        lightboxBody.appendChild(rfid);
+                        textarea.rows = "20";
+                        textarea.placeholder = "Unlock Codes (MIFARE Protocol 13.56 Mhz)";
+                        lightboxBody.appendChild(textarea);
 
                         window.location = "#openModal";
                     }
@@ -532,7 +606,7 @@ function buildAlertList(showAll,size)
                         lightboxBody.appendChild(password);
 
                         window.location = "#openModal";
-
+                        /*
                         save.onclick = function (e) {
 
                             json.wifi.email = email.value;
@@ -542,29 +616,25 @@ function buildAlertList(showAll,size)
 
                             window.location = "#close";
                         };
+                        */
                     }
 
                 }else{
+                    json.alerts[this.id.substr(6)].enabled = false;
                     this.children[1].src = "img/disabled.svg";
                 }
 
-                console.log("...set alert '" + this.id.substr(6) + "' " + yesno);
+                console.log("...set alert '" + this.id.substr(6) + "' " + json.alerts[this.id.substr(6)].enabled);
 
-                for (i in json.alerts)
-                {
-                    if(json.alerts.id === this.id.substr(6))
-                    {
-                        json.alerts[i].enabled = yesno;
-                        break;
-                    }
-                }
+                buildOdometer("front");
+                buildAlerts("front");
             };
 
             if(showAll)
             {
                 var overlay = document.createElement("img");
                 overlay.classList.add("svg-inject");
-                if(json.alerts[i].enabled)
+                if(json.alerts[key].enabled)
                 {
                     overlay.src = "img/enabled.svg";
                 }else{
@@ -611,6 +681,7 @@ function buildGaugeList(array,size,title)
 
         var canvas = document.createElement("canvas");
         canvas.id = array[i].renderTo;
+
         back[0].appendChild(canvas);
         var gauge = new RadialGauge(array[i]).draw();
         canvas.remove();
@@ -675,6 +746,8 @@ function buildGaugeList(array,size,title)
 
 function streamView(path)
 {
+    //TODO: Detect idle mode and slow down stream
+
     var _alert = document.getElementsByClassName("alert");
 
 	var xhr = new XMLHttpRequest();
@@ -792,8 +865,10 @@ function getHeight() {
 
 function updateOdometer(n) {
     n += 0.01
-    odometer_count.setValue(n);
-    setTimeout(function(){updateOdometer(n)}, 80);
+    odometer.setValue(n.toString());
+    odometerTimer = setTimeout(function(){
+        updateOdometer(n);
+    }, 200);
 };
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
