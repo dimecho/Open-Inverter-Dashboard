@@ -3,7 +3,7 @@
         {
             "index": 0,
             "renderTo": "battery",
-            "enabled": false,
+            "enabled": true,
             "units": "%",
             "title": "Battery",
             "width": 533,
@@ -32,6 +32,14 @@
             ],
             "borderShadowWidth": 0,
             "borders": false,
+            "needleType": "arrow",
+            "needleWidth": 2,
+            "needleCircleSize": 7,
+            "needleCircleOuter": true,
+            "needleCircleInner": false,
+            "animationDuration": 1500,
+            "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
             "colorMajorTicks": "#ddd",
             "colorMinorTicks": "#ddd",
             "colorTitle": "#eee",
@@ -102,6 +110,7 @@
             "needleCircleInner": false,
             "animationDuration": 1000,
             "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
             "colorMajorTicks": "#ddd",
             "colorMinorTicks": "#ddd",
             "colorTitle": "#eee",
@@ -166,13 +175,13 @@
             "borderShadowWidth": 0,
             "borders": false,
             "needleType": "arrow",
-            "needleWidth": 4,
+            "needleWidth": 2,
             "needleCircleSize": 7,
             "needleCircleOuter": true,
             "needleCircleInner": false,
-            "animationDuration": 1000,
-            "valueBoxBorderRadius": 0,
+            "animationDuration": 800,
             "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
             "colorMajorTicks": "#ddd",
             "colorMinorTicks": "#ddd",
             "colorTitle": "#eee",
@@ -250,8 +259,8 @@
             "needleCircleOuter": true,
             "needleCircleInner": false,
             "animationDuration": 1500,
-            "valueBoxBorderRadius": 0,
             "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
             "colorMajorTicks": "#ddd",
             "colorMinorTicks": "#ddd",
             "colorTitle": "#eee",
@@ -337,12 +346,10 @@
     },
     "sounds": [
         {
-            "id": "deepengine",
-            "play": false
+            "id": "deepengine"
         },
         {
-            "id": "deepengine2",
-            "play": false
+            "id": "deepengine2"
         }
     ],
     "rfid": [

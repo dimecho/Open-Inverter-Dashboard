@@ -14,7 +14,7 @@
         <script src="js/sortable.js"></script>
     </head>
     <body>
-		<div class="alert" onclick="this.style.display='none';"></div>
+		<div id="alert" onclick="this.style.display='none';"></div>
 		<label>
             <!-- <input type="checkbox" /> -->
     		<div class="card">
@@ -30,6 +30,20 @@
                     <div class="form-group row" id="lightboxBody" style="margin-left: auto; margin-right: auto;"></div>
                 </form>
             </div>
+        </div>
+        <div class="serial">
+            <table>
+                </tr>
+                    <td align="center">
+                        <div class="circle-yellow circle-green" id="tx"></div>
+                        TX
+                    </td>
+                    <td align="center">
+                        <div class="circle-yellow circle-green" id="rx"></div>
+                        RX
+                    </td>
+                </tr>
+            </table>
         </div>
     </body>
 </html>

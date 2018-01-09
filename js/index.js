@@ -1,19 +1,38 @@
 var json = "";
-var stream = "";
 var view = "1.json";
+
 var blink_emergency;
 var blink_battery;
+
 var odometer;
 var odometerTimer;
+
 var dashboardVisible = [];
 var dashboardHidden = [];
-var dashboardHeight;
 var adjustHeight;
-var streamPaused = true;
 
-//window.addEventListener('load', function()
+var stream = "";
+var streamURL = "";
+var streamTimer;
+var streamPaused = false;
+
+var _alert;
+var _tx;
+var _rx;
+
 document.addEventListener("DOMContentLoaded", function(event)
 {
+    _alert = document.getElementById("alert");
+    _tx = document.getElementById("tx");
+    _rx = document.getElementById("rx");
+
+    /*
+    PHP Web server does not support asycronous connections
+    For stream to work we need pipe it throught different port
+    Also note that this is HTTP security bypass --> Header: ‘Access-Control-Allow-Origin’
+    */
+    streamURL =  window.location.href.replace(":8080",":8081");
+
     loadView("views/" + view, function(data)
     {
         //console.log(data);
@@ -23,8 +42,8 @@ document.addEventListener("DOMContentLoaded", function(event)
 
         buildView("front");
         renderView("front");
-
         animateView();
+        streamInit();
 
     }, function(xhr) { console.error(xhr); });
 });
@@ -41,7 +60,6 @@ function animateView()
 
             setTimeout(function() {
                 gauge.value = gauge.options.minValue;
-                //streamView();
             }, gauge.options.animationDuration*1.5);
         }
     });
@@ -55,9 +73,8 @@ function sizeView(view)
     {
         var h = 100; //TODO: calculate dynamically
         adjustHeight = h;
-        dashboardHeight = (getHeight() - adjustHeight);
-
-        console.log("dashboardHeight: " + dashboardHeight);
+        //dashboardHeight = (getHeight() - adjustHeight);
+        //console.log("dashboardHeight: " + dashboardHeight);
 
         if(json.alerts.odometer.enabled === true)
             h *=2;
@@ -94,10 +111,18 @@ function sizeView(view)
         */
 
     }else if (view === "back") {
+
         var divA = document.getElementById("backAvailable");
         var divB = document.getElementById("backSelected");
-        console.log("set back " + dashboardHeight);
-        divB.height = dashboardHeight;
+        
+        divA.parentElement.height = Math.round(getHeight() / 3);
+        divB.parentElement.height = getHeight() - divA.parentElement.height - adjustHeight;
+
+        for (var i = 0; i < json.dashboard.length; i++)
+        {
+            var img = document.getElementById("_" + json.dashboard[i].renderTo);
+            img.width = img.parentElement.parentElement.parentElement.parentElement.height;
+        }
     }
 };
 
@@ -188,6 +213,8 @@ function buildView(view)
         }
 
         side[0].onclick = function () {
+            streamPaused = true;
+            _alert.style.display = "none";
             buildView("back");
             renderView("back");
             this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
@@ -204,14 +231,14 @@ function buildView(view)
 
         var tr = document.createElement("tr");
         var td = document.createElement("td");
-        //td.height =  getHeight() / 5;
+        td.setAttribute("valign", "top");
         td.appendChild(divA);
         tr.appendChild(td);
         table.appendChild(tr);
 
         var tr = document.createElement("tr");
         var td = document.createElement("td");
-        td.height = dashboardHeight;
+        td.setAttribute("valign", "top");
         td.appendChild(divB);
         tr.appendChild(td);
 
@@ -220,7 +247,9 @@ function buildView(view)
             this.parentElement.style.cssText = "";
             setTimeout(function(){
                 side[0].innerHTML = "";
-                animateView(); 
+                animateView();
+                saveView();
+                streamPaused = false;
             }, 1000);
         };
     }
@@ -264,7 +293,7 @@ function renderView(view)
                     stream += ",udc";
                     break;
                 case "speed":
-                    stream += ",rpm";
+                    stream += ",speed";
                     break;
                 }
 
@@ -334,8 +363,8 @@ function renderView(view)
         var divA = document.getElementById("backAvailable");
         var divB = document.getElementById("backSelected");
 
-        divA.appendChild(buildGaugeList(dashboardHidden,"15%"));
-        divB.appendChild(buildGaugeList(dashboardVisible,"20%"));
+        divA.appendChild(buildGaugeList(dashboardHidden,(getHeight()/2)));
+        divB.appendChild(buildGaugeList(dashboardVisible,(getHeight()/2)));
 
         [].forEach.call(divA.getElementsByClassName('tile__list'), function (el){
             Sortable.create(el, {
@@ -347,8 +376,8 @@ function renderView(view)
                 },
                 */
                 onAdd: function (event) {
-                    //evt.from;
-                    event.item.setAttribute('width', "15%");
+ 
+                    event.item.width = divA.parentElement.height;
 
                     sortView(el, event, false);
                     renderView("front");
@@ -366,18 +395,16 @@ function renderView(view)
                 */
                 onAdd: function (event) {
                     //event.from;
-                    event.item.setAttribute('width', "20%");
+                    event.item.width = divB.parentElement.height;
 
                     sortView(el, event, true);
                     renderView("front");
-                    saveView();
                 },
                 //onUpdate: function (event) {
                 onSort: function (event) {
 
                     sortView(el, event, true);
                     renderView("front");
-                    saveView();
                 }
             });
         });
@@ -527,7 +554,6 @@ function buildAlertList(showAll,size)
                                     json.background = this.src;
                                     document.body.style.backgroundImage = "url('views/bg/" + this.src + "')";
                                     window.location = "#close";
-                                    saveView();
                                 };
                             }
                             ul.appendChild(nav_dots);
@@ -690,7 +716,7 @@ function buildGaugeList(array,size,title)
         var img = document.createElement("img");
         img.src = canvas.toDataURL();
         img.id = array[i].renderTo;
-        img.setAttribute('width', size);
+        img.width = size;
         tile_list.appendChild(img);
 
         img.onclick = function (e) {
@@ -730,7 +756,6 @@ function buildGaugeList(array,size,title)
                     }
                 }
                 renderView("front");
-                saveView();
             };
         };
 
@@ -744,27 +769,68 @@ function buildGaugeList(array,size,title)
     return tile;
 };
 
-function streamView(path)
+function streamInit()
+{
+    console.log(streamURL + "serial.php?init=1");
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                console.log(xhr.responseText);
+                streamView();
+            } else {
+                console.log(xhr.statusText);
+                _alert.innerHTML = "Cannot Initialize Serial " + xhr.statusText;
+                _alert.style.display = "block";
+            }
+        }
+    }
+
+    xhr.timeout = 6000;
+    xhr.open('GET', streamURL + "serial.php?init=1",true);
+    xhr.send();
+};
+
+function streamView()
 {
     //TODO: Detect idle mode and slow down stream
 
-    var _alert = document.getElementsByClassName("alert");
+    clearTimeout(streamTimer);
 
-	var xhr = new XMLHttpRequest();
-    xhr.open('GET', "serial.php?stream=" + stream, true);
-    xhr.send();
-	
+    _alert.style.display = "none";
+
+    if(streamPaused == true) {
+        streamTimer = setTimeout(function(){
+            streamView();
+        }, 4000);
+        return;
+    }
+
+    _tx.classList.toggle("circle-green");
+
+    console.log(streamURL + "serial.php?stream=" + stream);
+
+    var xhr = new XMLHttpRequest();
 	xhr.onreadystatechange = function()
 	{
-		console.log("State change: "+ xhr.readyState);
+        //console.log("State change: "+ xhr.readyState);
 
-		if(xhr.readyState == 3) {
-            
-			var newData = xhr.response.substr(xhr.seenBytes);
-			if(newData !== "Unknown command sequence")
-			{
-				console.log(newData);
-                
+        if(xhr.readyState == 3) {
+
+            _rx.classList.toggle("circle-green");
+
+            var newData = xhr.response.substr(xhr.seenBytes);
+
+            console.log(newData + "\n-------------");
+
+            if (newData.indexOf("Error") != -1) {
+
+                _alert.innerHTML = newData;
+                _alert.style.display = "block";
+
+            } else { //if (newData !== "Unknown command sequence") {
+				
                 /*
                 blink_emergency = setInterval(function() 
                 {
@@ -787,33 +853,46 @@ function streamView(path)
                 svg.classList.add(svg.dataset.color);
                 new SVGInjector().inject(svg);
                 */
-
 			}
 			xhr.seenBytes = xhr.responseText.length;
-			//console.log("seenBytes: " +xhr.seenBytes);
-			_alert.style.display = "none";
-		}else if (xhr.readyState == 4) {
-			//console.log("Complete");
-			//console.log(xhr.responseText);
-			_alert.innerHTML = "Connection Lost";
-			_alert.style.display = "block";
+            //console.log("seenBytes: " +xhr.seenBytes);
+
+		} else if (xhr.readyState == 4) {
+
+            //console.log("Complete");
+
+            if (xhr.status === 200) {
+
+                //console.log(xhr.responseText);
+
+                streamTimer = setTimeout(function() {
+                    streamView();
+                }, 2000);
+               
+            } else {
+                console.log(xhr.statusText);
+                //if (xhr.seenBytes) {
+                    _alert.innerHTML = "Connection Lost";
+                    _alert.style.display = "block";
+                //}
+            }
+
+            _tx.classList.toggle("circle-yellow");
+            _rx.classList.toggle("circle-yellow");
 		}
 	};
-	xhr.addEventListener("error", function(e) {
-	  console.log("error: " +e);
-	});
+
+    xhr.timeout = 6000;
+    xhr.open('GET', streamURL + "serial.php?stream=" + stream + "&loop=3", true);
+    xhr.send();
 };
 
 function loadView(path, success, error)
 {
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", path, true);
-    //xhr.setRequestHeader('Content-Type', 'application/json'); 
-    xhr.send();
-
     xhr.onreadystatechange = function()
     {
-        if (xhr.readyState === XMLHttpRequest.DONE) {
+        if (xhr.readyState === 4) {
             if (xhr.status === 200) {
                 if (success)
 					if(path.indexOf(".json") !== -1) {
@@ -827,6 +906,9 @@ function loadView(path, success, error)
             }
         }
     };
+    xhr.open("GET", path, true);
+    //xhr.setRequestHeader('Content-Type', 'application/json'); 
+    xhr.send();
 };
 
 function saveView()
@@ -834,12 +916,23 @@ function saveView()
     console.log("saving view");
 
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', 'views/save.php', true);
     xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
     xhr.onload = function () {
-        // do something to response
-        console.log(this.responseText);
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                console.log(this.responseText);
+                if(this.responseText !== "") {
+                    _alert.innerHTML = this.responseText;
+                    _alert.style.display = "block";
+                }
+            } else {
+                console.log(xhr.statusText);
+                _alert.innerHTML = "Cannot Save View " + xhr.statusText;
+                _alert.style.display = "block";
+            }
+        }
     };
+    xhr.open('POST', 'views/save.php', true);
     xhr.send('view=' + view + '&json=' + JSON.stringify(json));
 };
 

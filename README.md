@@ -32,8 +32,8 @@ This is a Raspberry Pi Dashboard designed for Huebner [Inverter Project](http://
 ```
 git clone git://github.com/poofik/huebner-inverter-raspberrydash.git
 cd huebner-inverter-raspberrydash
-chmod +x setup
-./setup
+chmod +x setup.sh
+./setup.sh
 ```
 
 ### Connecting Inverter
