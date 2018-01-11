@@ -2,7 +2,7 @@
     "dashboard": [
         {
             "index": 0,
-            "renderTo": "battery",
+            "renderTo": "udc",
             "enabled": true,
             "units": "%",
             "title": "Battery",
@@ -62,7 +62,7 @@
         },
         {
             "index": 1,
-            "renderTo": "speed",
+            "renderTo": "CAN-speed",
             "enabled": true,
             "units": "Km\/h",
             "width": 533,
@@ -133,7 +133,7 @@
         },
         {
             "index": 2,
-            "renderTo": "rpm",
+            "renderTo": "speed",
             "enabled": true,
             "units": "1\/min x 1000",
             "width": 533,

@@ -36,6 +36,7 @@ echo " > Enter Serial (Example: /dev/ttyAMA0)"
 read dev_serial
 sudo cp -R $htmlLocation/config.inc $htmlLocation/config.inc.php
 sudo sed -i -e "s~/dev/cu.usbserial~$dev_serial~g" $htmlLocation/config.inc.php
+#sudo chmod a+rwx $dev_serial
 
 echo "...Configuring PHP Autostart"
 rclocal="/etc/rc.local"
@@ -67,9 +68,11 @@ sudo systemctl enable serial-getty@ttyAMA0.service
 sudo usermod -a -G dialout www-data
 sudo usermod -a -G tty www-data
 #UART on the Pi-3 you will need to disable bluetooth
+sudo systemctl disable hciuart
 sudo sh -c "sudo echo '
 enable_uart=1
-dtoverlay=pi3-miniuart-bt' >> /boot/config.txt"
+dtoverlay=pi3-disable-bt' >> /boot/config.txt"
+sudo sed -i -e "s/console=serial0,115200//g" /boot/cmdline.txt
 
 echo "> Auto-Start Full Screen Kiosk Mode? (y/n)"
 read yn

@@ -43,7 +43,10 @@ document.addEventListener("DOMContentLoaded", function(event)
         buildView("front");
         renderView("front");
         animateView();
-        streamInit();
+
+        setTimeout(function() {
+                streamInit();
+        }, 4000);
 
     }, function(xhr) { console.error(xhr); });
 });
@@ -289,8 +292,8 @@ function renderView(view)
                 //console.log(json.dashboard[i].renderTo);
 
                 switch (json.dashboard[i].renderTo) {
-                    case "battery":
-                    stream += ",udc";
+                    case "udc":
+                    stream += ",udc,udcmax";
                     break;
                 case "speed":
                     stream += ",speed";
@@ -776,20 +779,65 @@ function streamInit()
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4) {
+
+            var error = "";
+
             if (xhr.status === 200) {
+
                 console.log(xhr.responseText);
-                streamView();
+                error = xhr.responseText;
+
+                if(error.indexOf("Unknown command sequence") != -1) {
+                    streamView();
+                    return;
+                }
             } else {
                 console.log(xhr.statusText);
-                _alert.innerHTML = "Cannot Initialize Serial " + xhr.statusText;
-                _alert.style.display = "block";
+                error = xhr.statusText;
             }
+            _alert.innerHTML = "Cannot Initialize Serial " + error;
+            _alert.style.display = "block";
         }
     }
 
     xhr.timeout = 6000;
     xhr.open('GET', streamURL + "serial.php?init=1",true);
     xhr.send();
+};
+
+function streamReset(pid)
+{
+    //console.log("serial.php?reset=1&pid=" + pid);
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                console.log(xhr.responseText);
+            } else {
+                console.log(xhr.statusText); 
+            }
+        }
+    }
+
+    xhr.timeout = 1000;
+    xhr.open('GET', "serial.php?reset=1&pid=" + pid,true);
+    xhr.send();
+};
+
+function getGaugeID(id)
+{
+    for (var i = 0, l = document.gauges.length; i < l; i++) {
+        var gauge = document.gauges[i];
+        if (gauge.options.renderTo == id) {
+            return i;
+        }
+    }
+};
+
+function setLED(object,color)
+{
+    //object.classList.toggle("circle-" + color);
+    object.className = "circle-" + color;
 };
 
 function streamView()
@@ -807,30 +855,70 @@ function streamView()
         return;
     }
 
-    _tx.classList.toggle("circle-green");
+    setLED(_tx,"green");
 
-    console.log(streamURL + "serial.php?stream=" + stream);
-
+    //console.log(streamURL + "serial.php?stream=" + stream);
     var xhr = new XMLHttpRequest();
+    xhr.items = stream.split(",");
+    xhr.i = -1;
+    xhr.pid = "";
+    xhr.gaugeid = [stream.length];
+    xhr.timeoutCount = 0;
+
+    for (var i = 0; i < stream.length; i++)
+    {
+        xhr.gaugeid[i] = getGaugeID(xhr.items[i]);
+        //console.log("gauge is search for " + xhr.items[i] + " = " + xhr.gaugeid[i]);
+    }
+
 	xhr.onreadystatechange = function()
 	{
         //console.log("State change: "+ xhr.readyState);
 
         if(xhr.readyState == 3) {
 
-            _rx.classList.toggle("circle-green");
+            setLED(_rx,"green");
 
             var newData = xhr.response.substr(xhr.seenBytes);
-
-            console.log(newData + "\n-------------");
+            //console.log(newData + "\n-------------");
 
             if (newData.indexOf("Error") != -1) {
 
                 _alert.innerHTML = newData;
                 _alert.style.display = "block";
 
-            } else { //if (newData !== "Unknown command sequence") {
-				
+            } else {
+
+				var data = newData.slice(0, -1).split("\n");
+
+                //console.log(data);
+
+                if(this.i ===  -1)
+                    this.pid = data[0];
+
+                //console.log(this.items);
+
+                for (var d = 0; d < data.length; d++) {
+
+                    if (this.i > this.items.length-1)
+                        this.i = 0;
+
+                    //console.log("[" + this.i + "] " + this.items[this.i] + ":" + data[d]);
+
+                    if(this.items[this.i] === "udc")
+                    {
+                        //console.log(data[d] + ":" + data[d+1]);
+                        var percent = data[d] / data[d+1] * 100;
+                        //console.log("battery: " + percent + "%");
+
+                        document.gauges[this.gaugeid[this.i]].value = percent;
+
+                    }else if(this.items[this.i] === "speed") {
+                        document.gauges[this.gaugeid[this.i]].value = data[d];
+                    }
+
+                    this.i++;
+                }
                 /*
                 blink_emergency = setInterval(function() 
                 {
@@ -855,6 +943,8 @@ function streamView()
                 */
 			}
 			xhr.seenBytes = xhr.responseText.length;
+
+            //setLED(_rx,"yellow");
             //console.log("seenBytes: " +xhr.seenBytes);
 
 		} else if (xhr.readyState == 4) {
@@ -864,35 +954,63 @@ function streamView()
             if (xhr.status === 200) {
 
                 //console.log(xhr.responseText);
-
+                /*
                 streamTimer = setTimeout(function() {
                     streamView();
                 }, 2000);
-               
+                */
             } else {
-                console.log(xhr.statusText);
+
+                console.log(xhr.status);
+
                 //if (xhr.seenBytes) {
-                    _alert.innerHTML = "Connection Lost";
-                    _alert.style.display = "block";
+                //    _alert.innerHTML = "Connection Lost";
+                //    _alert.style.display = "block";
                 //}
             }
 
-            _tx.classList.toggle("circle-yellow");
-            _rx.classList.toggle("circle-yellow");
+            setLED(_tx,"yellow");
+            setLED(_rx,"yellow");
 		}
 	};
 
-    xhr.timeout = 6000;
-    xhr.open('GET', streamURL + "serial.php?stream=" + stream + "&loop=3", true);
+    xhr.ontimeout = function () {
+        //console.log("Reset PID: " + pid);
+        //streamReset(pid);
+
+        console.log("Timed Out");
+
+        if(this.timeoutCount > 5)
+        {
+            this.timeoutCount = 0;
+
+            _alert.innerHTML = "Connection Lost";
+            _alert.style.display = "block";
+
+        }else{
+            streamTimer = setTimeout(function() {
+                streamView();
+            }, 1000);
+
+            this.timeoutCount++;
+        }
+    };
+
+    xhr.timeout = 4000;
+    xhr.open('GET', streamURL + "serial.php?stream=" + stream + "&loop=100&delay=200", true);
     xhr.send();
 };
 
 function loadView(path, success, error)
 {
     var xhr = new XMLHttpRequest();
+    xhr.open("GET", path, true);
+    //xhr.setRequestHeader('Content-Type', 'application/json'); 
+    xhr.send();
+
     xhr.onreadystatechange = function()
     {
-        if (xhr.readyState === 4) {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
                 if (success)
 					if(path.indexOf(".json") !== -1) {
@@ -906,9 +1024,6 @@ function loadView(path, success, error)
             }
         }
     };
-    xhr.open("GET", path, true);
-    //xhr.setRequestHeader('Content-Type', 'application/json'); 
-    xhr.send();
 };
 
 function saveView()
@@ -916,23 +1031,18 @@ function saveView()
     console.log("saving view");
 
     var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'views/save.php', true);
     xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
     xhr.onload = function () {
-        if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-                console.log(this.responseText);
-                if(this.responseText !== "") {
-                    _alert.innerHTML = this.responseText;
-                    _alert.style.display = "block";
-                }
-            } else {
-                console.log(xhr.statusText);
-                _alert.innerHTML = "Cannot Save View " + xhr.statusText;
-                _alert.style.display = "block";
-            }
+        // do something to response
+        console.log(this.responseText);
+
+        if(this.responseText !== "")
+        {
+            _alert.innerHTML = this.responseText;
+            _alert.style.display = "block";
         }
     };
-    xhr.open('POST', 'views/save.php', true);
     xhr.send('view=' + view + '&json=' + JSON.stringify(json));
 };
 
