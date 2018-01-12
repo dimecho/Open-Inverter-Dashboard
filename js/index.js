@@ -1,8 +1,7 @@
 var json = "";
 var view = "1.json";
 
-var blink_emergency;
-var blink_battery;
+var blinkAlert = [];
 
 var odometer;
 var odometerTimer;
@@ -17,14 +16,10 @@ var streamTimer;
 var streamPaused = false;
 
 var _alert;
-var _tx;
-var _rx;
 
 document.addEventListener("DOMContentLoaded", function(event)
 {
     _alert = document.getElementById("alert");
-    _tx = document.getElementById("tx");
-    _rx = document.getElementById("rx");
 
     /*
     PHP Web server does not support asycronous connections
@@ -187,7 +182,7 @@ function buildAlerts(view)
 
     alerts.appendChild(td);
 
-    new SVGInjector().inject(document.querySelectorAll('.svg-inject'));
+    SVGInjector(document.querySelectorAll('.svg-inject'));
 };
 
 function buildView(view)
@@ -671,11 +666,9 @@ function buildAlertList(showAll,size)
                 }
                 overlay.style.cssText = "position:relative;top:" + x + "px;left:-" + x + "px;width:" + x + "px;height:" + x + "px;";
                 span.appendChild(overlay);
-                //new SVGInjector().inject(overlay);
             }
 
             td.appendChild(span);
-            //new SVGInjector().inject(svg);
         }
     }
 
@@ -774,7 +767,7 @@ function buildGaugeList(array,size,title)
 
 function streamInit()
 {
-    console.log(streamURL + "serial.php?init=1");
+    //console.log(streamURL + "serial.php?init=1");
 
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
@@ -834,10 +827,38 @@ function getGaugeID(id)
     }
 };
 
-function setLED(object,color)
+function setColorAlert(id, color)
 {
-    //object.classList.toggle("circle-" + color);
-    object.className = "circle-" + color;
+    var span = document.getElementById("alert_" + id);
+    var svg = span.childNodes[0];
+
+    svg.classList.remove("svg-grey");
+    svg.classList.remove("svg-orange");
+    svg.classList.remove("svg-green");
+    svg.classList.add("svg-" + color);
+}
+
+function setBlinkAlert(i, id)
+{
+    //clearInterval(blinkAlert[i]);
+
+    blinkAlert[i] = setInterval(function()
+    {
+        var span = document.getElementById("alert_" + id);
+        var svg = span.childNodes[0];
+
+        //console.log(svg.className + ":" + svg.dataset.color);
+        
+        if(svg.className.baseVal.indexOf(svg.dataset.color) !== -1) {
+            svg.classList.remove(svg.dataset.color);
+            svg.classList.add("svg-grey");
+        }else{
+            svg.classList.remove("svg-grey");
+            svg.classList.add(svg.dataset.color);
+        }
+        //SVGInjector(svg);
+
+    }, 1000);
 };
 
 function streamView()
@@ -854,8 +875,6 @@ function streamView()
         }, 4000);
         return;
     }
-
-    setLED(_tx,"green");
 
     //console.log(streamURL + "serial.php?stream=" + stream);
     var xhr = new XMLHttpRequest();
@@ -876,8 +895,6 @@ function streamView()
         //console.log("State change: "+ xhr.readyState);
 
         if(xhr.readyState == 3) {
-
-            setLED(_rx,"green");
 
             var newData = xhr.response.substr(xhr.seenBytes);
             //console.log(newData + "\n-------------");
@@ -908,34 +925,52 @@ function streamView()
                     if(this.items[this.i] === "udc")
                     {
                         //console.log(data[d] + ":" + data[d+1]);
-                        var percent = data[d] / data[d+1] * 100;
-                        //console.log("battery: " + percent + "%");
+                        var percent = parseInt(data[d]) / parseInt(data[d+1]) * 100;
 
-                        document.gauges[this.gaugeid[this.i]].value = percent;
+                        if(percent > 0)
+                        {
+                            if(json.alerts.battery.show)
+                            {
+                                if(percent < 20) {
+                                
+                                    if(blinkAlert[0] === undefined)
+                                    {
+                                        console.log("battery: " + data[d]);
+                                        setBlinkAlert(0, "battery");
+                                    }
+                                }else if(percent > 80) {
+                                    setColorAlert("battery", "green");
+                                }else if(percent > 20 && percent < 80) {
+                                    setColorAlert("battery", "orange");
+                                }else{
+                                    clearInterval(blinkAlert[0]);
+                                    setColorAlert("battery", "grey");
+                                }
+                            }
+                            //console.log("battery: " + percent + "%");
+                            document.gauges[this.gaugeid[this.i]].value = percent;
+                        }
 
                     }else if(this.items[this.i] === "speed") {
+
                         document.gauges[this.gaugeid[this.i]].value = data[d];
+
+                    }else if(this.items[this.i] === "din_emcystop" && json.alerts.emergency.show) {
+                        
+                        if(data[d] === "1.00") {
+                            if(blinkAlert[1] === undefined)
+                            {
+                                console.log("emergency: " + data[d]);
+                                setBlinkAlert(1, "emergency");
+                            }
+                        }else{
+                            clearInterval(blinkAlert[1]);
+                        }
                     }
 
                     this.i++;
                 }
-                /*
-                blink_emergency = setInterval(function() 
-                {
-                    var svg = document.getElementById("emergency");
-
-                    if(svg.className.baseVal.indexOf(svg.dataset.color) !== -1) {
-                        svg.classList.remove("svg-orange");
-                        svg.classList.add("svg-grey");
-                    }else{
-                        svg.classList.remove("svg-grey");
-                        svg.classList.add("svg-orange");
-                    }
-                    new SVGInjector().inject(svg);
-                }, 1000);
-                clearInterval(blink_emergency);
-                */
-
+               
                 /*
                 var svg = document.getElementById("battery");
                 svg.classList.add(svg.dataset.color);
@@ -944,7 +979,6 @@ function streamView()
 			}
 			xhr.seenBytes = xhr.responseText.length;
 
-            //setLED(_rx,"yellow");
             //console.log("seenBytes: " +xhr.seenBytes);
 
 		} else if (xhr.readyState == 4) {
@@ -954,11 +988,11 @@ function streamView()
             if (xhr.status === 200) {
 
                 //console.log(xhr.responseText);
-                /*
+                
                 streamTimer = setTimeout(function() {
                     streamView();
-                }, 2000);
-                */
+                }, 500);
+                
             } else {
 
                 console.log(xhr.status);
@@ -968,9 +1002,6 @@ function streamView()
                 //    _alert.style.display = "block";
                 //}
             }
-
-            setLED(_tx,"yellow");
-            setLED(_rx,"yellow");
 		}
 	};
 
@@ -996,8 +1027,8 @@ function streamView()
         }
     };
 
-    xhr.timeout = 4000;
-    xhr.open('GET', streamURL + "serial.php?stream=" + stream + "&loop=100&delay=200", true);
+    xhr.timeout = 10000;
+    xhr.open('GET', streamURL + "serial.php?stream=" + stream + "&loop=1000&delay=640", true);
     xhr.send();
 };
 

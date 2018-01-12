@@ -19,7 +19,7 @@
 
         $errors = shell_exec("stty -F " .$com. " 115200 -parenb -ocrnl cs8 cstopb");
         if($errors != "")
-            return "Error: " . $errors;
+            return $errors;
 
         $uart = fopen($com, "r+");
         
@@ -59,14 +59,6 @@
     {
         echo readSerial($_GET["command"]);
     }
-    else if(isset($_GET["average"]))
-    {
-        echo calculateAverage(readArray($_GET["average"],6));
-    }
-    else if(isset($_GET["median"]))
-    {
-        echo calculateMedian(readArray($_GET["median"],3));
-    }
     
     function readSerial($cmd)
     {
@@ -90,31 +82,29 @@
         $cmd = urldecode($cmd) . "\n";
         $uart = fopen($GLOBALS["com"], "r+"); //Read & Write
 
-        echo getmypid(). "\n";
+        fwrite($uart, $cmd);
+        $read = fgets($uart); //echo
 
-        ob_end_flush();
+        echo getmypid(). "\n";
 
         for ($i = 0; $i < $loop; $i++)
         {
             $streamCount = 0;
+            fwrite($uart, "!");
 
-            fwrite($uart, $cmd);
-            $read = fgets($uart); //echo
-            $read = "";
-            
+            ob_end_flush();
             while($streamCount <= $streamLength)
             {
-                //$read .= fread($uart, 1);
                 $read = fgets($uart);
-                
+                $read = ltrim($read, "!");
+
                 echo str_replace("\r","",$read);
                 
                 usleep($delay);
                 $streamCount++;
             }
-            ob_flush(); flush();
+            ob_start();
         }
-        ob_start();
 
         fclose($uart);
     }

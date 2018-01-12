@@ -97,14 +97,6 @@ table {
   border-radius: 100%;
 }
 
-.serial {
-  position: absolute;
-  bottom: 0;
-  margin: 10px;
-  width: 5em;
-  color: #bdc3c7;
-}
-
 .circle-green {
   margin: 10px;
   width: 10px;
