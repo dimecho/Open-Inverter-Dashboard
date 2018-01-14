@@ -1,6 +1,6 @@
 <?php
    
-    header("Access-Control-Allow-Origin: *");
+    //header("Access-Control-Allow-Origin: *");
 
     set_time_limit(160);
 
@@ -53,39 +53,38 @@
         if(isset($_GET["delay"]))
             $t = intval($_GET["delay"]);
 
-        streamSerial("get " .$_GET["stream"], $l, $t);
+        streamSerial("get " .$_GET["stream"], $l, $t, $com);
     }
     else if(isset($_GET["command"]))
     {
-        echo readSerial($_GET["command"]);
+        echo readSerial($_GET["command"],$com);
     }
     
-    function readSerial($cmd)
+    function readSerial($cmd,$com)
     {
-        $cmd = urldecode($cmd). "\n";
-        $uart = fopen($GLOBALS["com"], "r+"); //Read & Write
+        $cmd = $cmd. "\n";
+        $uart = fopen($com, "r+"); //Read & Write
 
         fwrite($uart, $cmd);
         $read = fgets($uart); //echo
         $read = fgets($uart);
+        fclose($uart);
 
         $read = rtrim($read ,"\n");
         $read = rtrim($read ,"\r");
-   
-        fclose($uart);
+
         return $read;
     }
 
-    function streamSerial($cmd,$loop,$delay)
+    function streamSerial($cmd,$loop,$delay,$com)
     {
         $streamLength = substr_count($cmd, ',');
-        $cmd = urldecode($cmd) . "\n";
-        $uart = fopen($GLOBALS["com"], "r+"); //Read & Write
+        $cmd = $cmd. "\n";
+        $uart = fopen($com, "r+"); //Read & Write
 
         fwrite($uart, $cmd);
         $read = fgets($uart); //echo
-
-        echo getmypid(). "\n";
+        //echo getmypid(). "\n";
 
         for ($i = 0; $i < $loop; $i++)
         {

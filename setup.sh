@@ -43,7 +43,6 @@ rclocal="/etc/rc.local"
 sudo sh -c "sudo echo '#!/bin/bash
 sudo ifup wlan0
 sudo -u www-data php -S 0.0.0.0:8080 -t /var/www/html/ &
-sudo -u www-data php -S 0.0.0.0:8081 -t /var/www/html/ &
 exit 0' > ${rclocal}"
 sudo chmod 755 $rclocal
 

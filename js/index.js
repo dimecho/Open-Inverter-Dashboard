@@ -11,22 +11,14 @@ var dashboardHidden = [];
 var adjustHeight;
 
 var stream = "";
-var streamURL = "";
+var streamHttpRequest;
 var streamTimer;
-var streamPaused = false;
 
 var _alert;
 
 document.addEventListener("DOMContentLoaded", function(event)
 {
     _alert = document.getElementById("alert");
-
-    /*
-    PHP Web server does not support asycronous connections
-    For stream to work we need pipe it throught different port
-    Also note that this is HTTP security bypass --> Header: ‘Access-Control-Allow-Origin’
-    */
-    streamURL =  window.location.href.replace(":8080",":8081");
 
     loadView("views/" + view, function(data)
     {
@@ -40,7 +32,7 @@ document.addEventListener("DOMContentLoaded", function(event)
         animateView();
 
         setTimeout(function() {
-                streamInit();
+            streamInit();
         }, 4000);
 
     }, function(xhr) { console.error(xhr); });
@@ -182,7 +174,8 @@ function buildAlerts(view)
 
     alerts.appendChild(td);
 
-    SVGInjector(document.querySelectorAll('.svg-inject'));
+    new SVGInjector().inject(document.querySelectorAll(".svg-inject"));
+    //SVGInjector(document.querySelectorAll('.svg-inject'));
 };
 
 function buildView(view)
@@ -211,11 +204,19 @@ function buildView(view)
         }
 
         side[0].onclick = function () {
-            streamPaused = true;
+
             _alert.style.display = "none";
+
+            streamHttpRequest.abort();
+            clearTimeout(streamTimer);
+
             buildView("back");
             renderView("back");
+
             this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
+            for (var i = 0, l = blinkAlert.length; i < l; i++)
+                clearInterval(blinkAlert[i]);
+            blinkAlert = [];
         };
 
     }else if (view === "back") {
@@ -242,13 +243,19 @@ function buildView(view)
 
         side[0].onclick = function () {
             //console.log(this);
-            this.parentElement.style.cssText = "";
+            _alert.style.display = "none";
+
+            renderView("front");
+
             setTimeout(function(){
                 side[0].innerHTML = "";
                 animateView();
                 saveView();
-                streamPaused = false;
+                setTimeout(function() {
+                    streamView();
+                }, 4000);
             }, 1000);
+            this.parentElement.style.cssText = "";
         };
     }
 
@@ -271,7 +278,7 @@ function renderView(view)
 
     if(view === "front")
     {
-        stream = "din_emcystop,din_ocur";
+        stream = "din_ocur";
         dashboardVisible = [];
         dashboardHidden = [];
 
@@ -292,6 +299,9 @@ function renderView(view)
                     break;
                 case "speed":
                     stream += ",speed";
+                    break;
+                case "temp":
+                    stream += ",tmpm,tmphs";
                     break;
                 }
 
@@ -378,7 +388,7 @@ function renderView(view)
                     event.item.width = divA.parentElement.height;
 
                     sortView(el, event, false);
-                    renderView("front");
+                    //renderView("front");
                 }
             });
         });
@@ -396,13 +406,13 @@ function renderView(view)
                     event.item.width = divB.parentElement.height;
 
                     sortView(el, event, true);
-                    renderView("front");
+                    //renderView("front");
                 },
                 //onUpdate: function (event) {
                 onSort: function (event) {
 
                     sortView(el, event, true);
-                    renderView("front");
+                    //renderView("front");
                 }
             });
         });
@@ -452,6 +462,13 @@ function buildAlertList(showAll,size)
         //console.log(json.alerts[i].svg);
         if((json.alerts[key].show == true && json.alerts[key].enabled == true) || showAll) {
             
+            if(showAll === false)
+                switch (key) {
+                    case "emergency":
+                    stream += ",din_emcystop";
+                    break;
+                }
+
             var span = document.createElement("span");
             var svg = document.createElement("img");
             var x = size / 2;
@@ -650,8 +667,8 @@ function buildAlertList(showAll,size)
 
                 console.log("...set alert '" + this.id.substr(6) + "' " + json.alerts[this.id.substr(6)].enabled);
 
-                buildOdometer("front");
-                buildAlerts("front");
+                //buildOdometer("front");
+                //buildAlerts("front");
             };
 
             if(showAll)
@@ -751,7 +768,7 @@ function buildGaugeList(array,size,title)
                         break;
                     }
                 }
-                renderView("front");
+                //renderView("front");
             };
         };
 
@@ -767,7 +784,7 @@ function buildGaugeList(array,size,title)
 
 function streamInit()
 {
-    //console.log(streamURL + "serial.php?init=1");
+    //console.log("serial.php?init=1");
 
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
@@ -794,7 +811,7 @@ function streamInit()
     }
 
     xhr.timeout = 6000;
-    xhr.open('GET', streamURL + "serial.php?init=1",true);
+    xhr.open('GET', "serial.php?init=1",true);
     xhr.send();
 };
 
@@ -856,6 +873,8 @@ function setBlinkAlert(i, id)
             svg.classList.remove("svg-grey");
             svg.classList.add(svg.dataset.color);
         }
+
+        //new SVGInjector().inject(svg);
         //SVGInjector(svg);
 
     }, 1000);
@@ -867,36 +886,29 @@ function streamView()
 
     clearTimeout(streamTimer);
 
-    _alert.style.display = "none";
+    console.log("serial.php?stream=" + stream);
 
-    if(streamPaused == true) {
-        streamTimer = setTimeout(function(){
-            streamView();
-        }, 4000);
-        return;
-    }
-
-    //console.log(streamURL + "serial.php?stream=" + stream);
-    var xhr = new XMLHttpRequest();
-    xhr.items = stream.split(",");
-    xhr.i = -1;
-    xhr.pid = "";
-    xhr.gaugeid = [stream.length];
-    xhr.timeoutCount = 0;
+    streamHttpRequest = new XMLHttpRequest();
+    streamHttpRequest.items = stream.split(",");
+    streamHttpRequest.i = 0;
+    streamHttpRequest.last = (streamHttpRequest.items.length - 1);
+    streamHttpRequest.gaugeid = [stream.length];
+    streamHttpRequest.delay = 640;
+    streamHttpRequest.timeoutCount = 0;
 
     for (var i = 0; i < stream.length; i++)
     {
-        xhr.gaugeid[i] = getGaugeID(xhr.items[i]);
-        //console.log("gauge is search for " + xhr.items[i] + " = " + xhr.gaugeid[i]);
+        streamHttpRequest.gaugeid[i] = getGaugeID(streamHttpRequest.items[i]);
+        //console.log("gauge is search for " + streamHttpRequest.items[i] + " = " + streamHttpRequest.gaugeid[i]);
     }
 
-	xhr.onreadystatechange = function()
+	streamHttpRequest.onreadystatechange = function()
 	{
-        //console.log("State change: "+ xhr.readyState);
+        //console.log("State change: "+ streamHttpRequest.readyState);
 
-        if(xhr.readyState == 3) {
+        if(streamHttpRequest.readyState == 3) {
 
-            var newData = xhr.response.substr(xhr.seenBytes);
+            var newData = streamHttpRequest.response.substr(streamHttpRequest.seenBytes);
             //console.log(newData + "\n-------------");
 
             if (newData.indexOf("Error") != -1) {
@@ -906,21 +918,14 @@ function streamView()
 
             } else {
 
-				var data = newData.slice(0, -1).split("\n");
+                var data = newData.slice(0, -1).split("\n");
 
                 //console.log(data);
-
-                if(this.i ===  -1)
-                    this.pid = data[0];
-
                 //console.log(this.items);
 
-                for (var d = 0; d < data.length; d++) {
-
-                    if (this.i > this.items.length-1)
-                        this.i = 0;
-
-                    //console.log("[" + this.i + "] " + this.items[this.i] + ":" + data[d]);
+                for (var d = 0; d < data.length; d++)
+                {
+                    //console.log("[" + this.i + ":" + data.length + "] " + this.items[this.i] + ":" + data[d]);
 
                     if(this.items[this.i] === "udc")
                     {
@@ -967,8 +972,11 @@ function streamView()
                             clearInterval(blinkAlert[1]);
                         }
                     }
-
-                    this.i++;
+                    
+                    if (this.i == this.last)
+                        this.i = 0;
+                    else
+                        this.i++;
                 }
                
                 /*
@@ -977,27 +985,27 @@ function streamView()
                 new SVGInjector().inject(svg);
                 */
 			}
-			xhr.seenBytes = xhr.responseText.length;
+			streamHttpRequest.seenBytes = streamHttpRequest.responseText.length;
 
-            //console.log("seenBytes: " +xhr.seenBytes);
+            //console.log("seenBytes: " + streamHttpRequest.seenBytes);
 
-		} else if (xhr.readyState == 4) {
+		} else if (streamHttpRequest.readyState == 4) {
 
             //console.log("Complete");
 
-            if (xhr.status === 200) {
+            if (streamHttpRequest.status === 200) {
 
-                //console.log(xhr.responseText);
+                //console.log(streamHttpRequest.responseText);
                 
                 streamTimer = setTimeout(function() {
                     streamView();
-                }, 500);
+                }, this.delay);
                 
             } else {
 
-                console.log(xhr.status);
+                console.log(streamHttpRequest.status);
 
-                //if (xhr.seenBytes) {
+                //if (streamHttpRequest.seenBytes) {
                 //    _alert.innerHTML = "Connection Lost";
                 //    _alert.style.display = "block";
                 //}
@@ -1005,7 +1013,7 @@ function streamView()
 		}
 	};
 
-    xhr.ontimeout = function () {
+    streamHttpRequest.ontimeout = function () {
         //console.log("Reset PID: " + pid);
         //streamReset(pid);
 
@@ -1021,15 +1029,15 @@ function streamView()
         }else{
             streamTimer = setTimeout(function() {
                 streamView();
-            }, 1000);
+            }, this.delay);
 
             this.timeoutCount++;
         }
     };
 
-    xhr.timeout = 10000;
-    xhr.open('GET', streamURL + "serial.php?stream=" + stream + "&loop=1000&delay=640", true);
-    xhr.send();
+    streamHttpRequest.timeout = 10000;
+    streamHttpRequest.open('GET', "serial.php?stream=" + stream + "&loop=800&delay=" + streamHttpRequest.delay, true);
+    streamHttpRequest.send();
 };
 
 function loadView(path, success, error)
@@ -1065,9 +1073,7 @@ function saveView()
     xhr.open('POST', 'views/save.php', true);
     xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
     xhr.onload = function () {
-        // do something to response
-        console.log(this.responseText);
-
+        //console.log(this.responseText);
         if(this.responseText !== "")
         {
             _alert.innerHTML = this.responseText;
