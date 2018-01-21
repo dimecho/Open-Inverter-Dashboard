@@ -913,8 +913,14 @@ function streamView()
 
             if (newData.indexOf("Error") != -1) {
 
-                _alert.innerHTML = newData;
+                if (newData.indexOf("<?php") != -1) {
+                    _alert.innerHTML = "PHP Not Found";
+                }else{
+                    _alert.innerHTML = newData;
+                }
                 _alert.style.display = "block";
+
+                streamHttpRequest.abort();
 
             } else {
 

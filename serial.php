@@ -19,7 +19,7 @@
 
         $errors = shell_exec("stty -F " .$com. " 115200 -parenb -ocrnl cs8 cstopb");
         if($errors != "")
-            return $errors;
+            return "Error: " + $errors;
 
         $uart = fopen($com, "r+");
         
@@ -89,7 +89,9 @@
         for ($i = 0; $i < $loop; $i++)
         {
             $streamCount = 0;
-            fwrite($uart, "!");
+            
+            if($i != 0)
+                fwrite($uart, "!");
 
             ob_end_flush();
             while($streamCount <= $streamLength)
