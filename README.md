@@ -7,15 +7,15 @@ This is a Dashboard designed for Huebner [Inverter Project](http://johanneshuebn
 ![Screenshot](Blackberry/img/screenshot.jpg?raw=true)
 
 ## Preview
-* [Online Demo](Web/index.html)
+* [Online Demo](https://poofik.github.io/Huebner-Inverter-Dashboard/Web/index.html)
 
 ## Download
 
-![Android](Web/img/android.png?raw=true) [Download for Android](../../releases/download/1.0/Huebner.Inverter.Dash.apk)
+![Android](Web/img/android.png?raw=true) [Android](../../releases/download/1.0/Huebner.Inverter.Dash.apk)
 
-![Blackberry](Web/img/bb.png?raw=true) [Download for Blackberry Playbook](../../releases/download/1.0/Huebner.Inverter.Dash.bar)
+![Blackberry](Web/img/bb.png?raw=true) [Blackberry Playbook](../../releases/download/1.0/Huebner.Inverter.Dash.bar)
 
-![RaspberryPi](Web/img/pi.png?raw=true) [Download for RaspberryPi](../../releases/download/1.0/Huebner.Inverter.Dash.zip)
+![RaspberryPi](Web/img/pi.png?raw=true) [RaspberryPi](../../releases/download/1.0/Huebner.Inverter.Dash.zip)
 
 ## Author
 
