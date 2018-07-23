@@ -1,0 +1,371 @@
+{
+    "server": "192.168.1.101:8081",
+    "dashboard": [
+        {
+            "index": 0,
+            "renderTo": "udc",
+            "enabled": true,
+            "units": "%",
+            "title": "Battery",
+            "width": 525,
+            "height": 525,
+            "highlights": [
+                {
+                    "from": 0,
+                    "to": 20,
+                    "color": "rgba(200,50,50,0.8)"
+                },
+                {
+                    "from": 20,
+                    "to": 40,
+                    "color": "rgba(90,90,90,0.8)"
+                },
+                {
+                    "from": 40,
+                    "to": 60,
+                    "color": "rgba(90,90,90,0.3)"
+                },
+                {
+                    "from": 80,
+                    "to": 100,
+                    "color": "rgba(39,174,96,0.75)"
+                }
+            ],
+            "borderShadowWidth": 0,
+            "borders": false,
+            "needleType": "arrow",
+            "needleWidth": 2,
+            "needleCircleSize": 7,
+            "needleCircleOuter": true,
+            "needleCircleInner": false,
+            "animationDuration": 1500,
+            "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
+            "colorMajorTicks": "#ddd",
+            "colorMinorTicks": "#ddd",
+            "colorTitle": "#eee",
+            "colorUnits": "#ccc",
+            "colorNumbers": "#eee",
+            "colorPlate": "#222",
+            "colorBorderOuter": "#333",
+            "colorBorderOuterEnd": "#111",
+            "colorBorderMiddle": "#222",
+            "colorBorderMiddleEnd": "#111",
+            "colorBorderInner": "#111",
+            "colorBorderInnerEnd": "#333",
+            "colorNeedleShadowDown": "#333",
+            "colorNeedleCircleOuter": "#333",
+            "colorNeedleCircleOuterEnd": "#111",
+            "colorNeedleCircleInner": "#111",
+            "colorNeedleCircleInnerEnd": "#222",
+            "colorValueBoxRect": "#222",
+            "colorValueBoxRectEnd": "#333"
+        },
+        {
+            "index": 2,
+            "renderTo": "CAN-speed",
+            "enabled": true,
+            "units": "Km\/h",
+            "width": 525,
+            "height": 525,
+            "minValue": 0,
+            "maxValue": 200,
+            "majorTicks": [
+                0,
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+            ],
+            "minorTicks": 2,
+            "strokeTicks": true,
+            "highlights": [
+                {
+                    "from": 40,
+                    "to": 60,
+                    "color": "rgba(90,90,90,0.8)"
+                },
+                {
+                    "from": 60,
+                    "to": 100,
+                    "color": "rgba(90,90,90,0.3)"
+                },
+                {
+                    "from": 160,
+                    "to": 200,
+                    "color": "rgba(200,50,50,0.75)"
+                }
+            ],
+            "borderShadowWidth": 0,
+            "borders": false,
+            "needleType": "arrow",
+            "needleWidth": 2,
+            "needleCircleSize": 7,
+            "needleCircleOuter": true,
+            "needleCircleInner": false,
+            "animationDuration": 1000,
+            "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
+            "colorMajorTicks": "#ddd",
+            "colorMinorTicks": "#ddd",
+            "colorTitle": "#eee",
+            "colorUnits": "#ccc",
+            "colorNumbers": "#eee",
+            "colorPlate": "#222",
+            "colorBorderOuter": "#333",
+            "colorBorderOuterEnd": "#111",
+            "colorBorderMiddle": "#222",
+            "colorBorderMiddleEnd": "#111",
+            "colorBorderInner": "#111",
+            "colorBorderInnerEnd": "#333",
+            "colorNeedleShadowDown": "#333",
+            "colorNeedleCircleOuter": "#333",
+            "colorNeedleCircleOuterEnd": "#111",
+            "colorNeedleCircleInner": "#111",
+            "colorNeedleCircleInnerEnd": "#222",
+            "colorValueBoxRect": "#222",
+            "colorValueBoxRectEnd": "#333"
+        },
+        {
+            "index": 3,
+            "renderTo": "speed",
+            "enabled": true,
+            "units": "1\/min x 1000",
+            "width": 525,
+            "height": 525,
+            "minValue": 0,
+            "maxValue": 10,
+            "majorTicks": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+            ],
+            "minorTicks": 2,
+            "strokeTicks": true,
+            "highlights": [
+                {
+                    "from": 3,
+                    "to": 6,
+                    "color": "rgba(90,90,90,0.8)"
+                },
+                {
+                    "from": 6,
+                    "to": 8,
+                    "color": "rgba(90,90,90,0.3)"
+                },
+                {
+                    "from": 8,
+                    "to": 10,
+                    "color": "rgba(200,50,50,0.75)"
+                }
+            ],
+            "borderShadowWidth": 0,
+            "borders": false,
+            "needleType": "arrow",
+            "needleWidth": 2,
+            "needleCircleSize": 7,
+            "needleCircleOuter": true,
+            "needleCircleInner": false,
+            "animationDuration": 800,
+            "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
+            "colorMajorTicks": "#ddd",
+            "colorMinorTicks": "#ddd",
+            "colorTitle": "#eee",
+            "colorUnits": "#ccc",
+            "colorNumbers": "#eee",
+            "colorPlate": "#222",
+            "colorBorderOuter": "#333",
+            "colorBorderOuterEnd": "#111",
+            "colorBorderMiddle": "#222",
+            "colorBorderMiddleEnd": "#111",
+            "colorBorderInner": "#111",
+            "colorBorderInnerEnd": "#333",
+            "colorNeedleShadowDown": "#333",
+            "colorNeedleCircleOuter": "#333",
+            "colorNeedleCircleOuterEnd": "#111",
+            "colorNeedleCircleInner": "#111",
+            "colorNeedleCircleInnerEnd": "#222",
+            "colorValueBoxRect": "#222",
+            "colorValueBoxRectEnd": "#333"
+        },
+        {
+            "index": 1,
+            "renderTo": "temp",
+            "enabled": true,
+            "units": "\u00b0C",
+            "title": "Temperature",
+            "width": 525,
+            "height": 525,
+            "minValue": 0,
+            "maxValue": 200,
+            "majorTicks": [
+                0,
+                20,
+                40,
+                60,
+                80,
+                100,
+                120,
+                140,
+                160,
+                180,
+                200
+            ],
+            "minorTicks": 2,
+            "strokeTicks": true,
+            "highlights": [
+                {
+                    "from": 0,
+                    "to": 40,
+                    "color": "rgba(0,0,255,0.5)"
+                },
+                {
+                    "from": 40,
+                    "to": 80,
+                    "color": "rgba(90,90,90,0.8)"
+                },
+                {
+                    "from": 80,
+                    "to": 100,
+                    "color": "rgba(90,90,90,0.3)"
+                },
+                {
+                    "from": 140,
+                    "to": 200,
+                    "color": "rgba(255,0,0,0.5)"
+                }
+            ],
+            "ticksAngle": 225,
+            "startAngle": 67.5,
+            "borderShadowWidth": 0,
+            "borders": false,
+            "needleType": "arrow",
+            "needleWidth": 2,
+            "needleCircleSize": 7,
+            "needleCircleOuter": true,
+            "needleCircleInner": false,
+            "animationDuration": 1500,
+            "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
+            "colorMajorTicks": "#ddd",
+            "colorMinorTicks": "#ddd",
+            "colorTitle": "#eee",
+            "colorUnits": "#ccc",
+            "colorNumbers": "#eee",
+            "colorPlate": "#222",
+            "colorBorderOuter": "#333",
+            "colorBorderOuterEnd": "#111",
+            "colorBorderMiddle": "#222",
+            "colorBorderMiddleEnd": "#111",
+            "colorBorderInner": "#111",
+            "colorBorderInnerEnd": "#333",
+            "colorNeedleShadowDown": "#333",
+            "colorNeedleCircleOuter": "#333",
+            "colorNeedleCircleOuterEnd": "#111",
+            "colorNeedleCircleInner": "#111",
+            "colorNeedleCircleInnerEnd": "#222",
+            "colorValueBoxRect": "#222",
+            "colorValueBoxRectEnd": "#333"
+        }
+    ],
+    "odometer": {
+        "pattern": "######.##",
+        "count": "200000.00",
+        "unit": "KM",
+        "displayAngle": 6,
+        "digitHeight": 20,
+        "digitWidth": 14,
+        "digitDistance": 2.5,
+        "segmentWidth": 2,
+        "segmentDistance": 0.3,
+        "segmentCount": 7,
+        "cornerType": 3,
+        "colorOn": "#e95d0f",
+        "colorOff": "#4b1e05"
+    },
+    "alerts": {
+        "background": {
+            "show": false,
+            "enabled": false,
+            "color": "svg-grey"
+        },
+        "odometer": {
+            "show": false,
+            "enabled": false,
+            "color": "svg-grey"
+        },
+        "battery": {
+            "show": true,
+            "enabled": true,
+            "color": "svg-red"
+        },
+        "temp": {
+            "show": true,
+            "enabled": true,
+            "color": "svg-red"
+        },
+        "emergency": {
+            "show": true,
+            "enabled": true,
+            "color": "svg-orange"
+        },
+        "sound": {
+            "show": true,
+            "enabled": false,
+            "color": "svg-blue"
+        },
+        "rfid": {
+            "show": true,
+            "enabled": false,
+            "color": "svg-blue"
+        },
+        "wifi-ap": {
+            "show": true,
+            "enabled": false,
+            "color": "svg-blue"
+        },
+        "wifi-alarm": {
+            "show": true,
+            "enabled": false,
+            "color": "svg-blue"
+        }
+    },
+    "sounds": [
+        {
+            "id": "deepengine"
+        },
+        {
+            "id": "deepengine2"
+        }
+    ],
+    "rfid": [
+        {
+            "id": "2434354577"
+        },
+        {
+            "id": "2434354578"
+        }
+    ],
+    "wifi": {
+        "email": "",
+        "smtp": "",
+        "username": "",
+        "password": ""
+    },
+    "background": "blackboard.png"
+}

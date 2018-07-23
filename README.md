@@ -1,47 +1,21 @@
-<p align="center"><img src="https://github.com/poofik/huebner-inverter-raspberrydash/raw/master/img/icon.png"></p>
+<p align="center"><img src="Web/img/icon.png?raw=true"></p>
 
-# Hubner Inverter - Raspberry Dash
+# Hubner Inverter Dashboard
 
-This is a Raspberry Pi Dashboard designed for Huebner [Inverter Project](http://johanneshuebner.com/quickcms/index.html%3Fde_electric-car-conversion-site,14.html)
+This is a Dashboard designed for Huebner [Inverter Project](http://johanneshuebner.com/quickcms/index.html%3Fde_electric-car-conversion-site,14.html)
 
-![Screenshot](img/screenshot.jpg?raw=true)
-
-* Motor Sound Generator
-* RFID Unlocker (MFRC522)
-* WiFi Alarm with Accelerometer (ADXL345)
+![Screenshot](Blackberry/img/screenshot.jpg?raw=true)
 
 ## Preview
-* [Online Demo](https://poofik.github.io/Huebner-Inverter-RaspberryDash/index.html)
+* [Online Demo](Web/index.html)
 
-## Getting Started
+## Download
 
-* Raspberry Pi 2/3
-* microSD card (4GB+)
-* LCD screen (SPI)
-* 5V power (microUSB)
+![Android](Web/img/android.png?raw=true) [Download for Android](../../releases/download/1.0/Huebner.Inverter.Dash.apk)
 
-### Prerequisites (Computer)
+![Blackberry](Web/img/bb.png?raw=true) [Download for Blackberry Playbook](../../releases/download/1.0/Huebner.Inverter.Dash.bar)
 
-* [Download Boot Image](https://www.raspberrypi.org/downloads/raspbian/) (Desktop Edition)
-* [Flash Boot Image](https://www.raspberrypi.org/documentation/installation/installing-images/) to your SD card
-* Put SD into your Raspberry Pi and Turn it ON
-
-### Installing (Raspberry Pi)
-
-* Open Terminal
-```
-git clone git://github.com/poofik/huebner-inverter-raspberrydash.git
-cd huebner-inverter-raspberrydash
-chmod +x setup.sh
-./setup.sh
-```
-
-### Connecting Inverter
-
-* Connect Inverter CPU to Raspberry Pi directly without USB-TTL converter
-
-![Connect](img/connect.png?raw=true)
-![Pin Layout](img/pi2_gpio.png?raw=true)
+![RaspberryPi](Web/img/pi.png?raw=true) [Download for RaspberryPi](../../releases/download/1.0/Huebner.Inverter.Dash.zip)
 
 ## Author
 

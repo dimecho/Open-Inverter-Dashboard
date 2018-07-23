@@ -1,0 +1,7 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppBaseTheme" parent="@android:style/Theme.Black"/>
+    <style name="AppTheme" parent="AppBaseTheme"/>
+
+</resources>
