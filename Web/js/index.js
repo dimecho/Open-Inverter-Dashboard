@@ -15,9 +15,11 @@ var streamHttpRequest;
 var streamTimer;
 
 var _alert;
+var iconic;
 
 document.addEventListener("DOMContentLoaded", function(event)
 {
+    iconic = IconicJS();
     _alert = document.getElementById("alert");
 
     loadView("views/" + view, function(data)
@@ -53,8 +55,6 @@ function animateView()
             }, gauge.options.animationDuration*1.5);
         }
     });
-
-    //new SVGInjector().inject(document.querySelectorAll("img.svg-inject"));
 };
 
 function sizeView(view)
@@ -140,16 +140,14 @@ function buildOdometer(view)
         td.appendChild(canvasOdometer);
         tr.appendChild(td);
 
-        /*
         odometer = new SegmentDisplay("odometer");
         odometer.pattern = json.odometer.pattern;
         odometer.colorOn = json.odometer.colorOn;
         odometer.colorOff = json.odometer.colorOff;
         odometer.draw();
         odometer.setValue(json.odometer.count);
-
-        updateOdometer(parseFloat(json.odometer.count));
-        */
+        //updateOdometer(parseFloat(json.odometer.count));
+        
     }
 };
 
@@ -175,9 +173,6 @@ function buildAlerts(view)
     }
 
     alerts.appendChild(td);
-
-    new SVGInjector().inject(document.querySelectorAll(".svg-inject"));
-    //SVGInjector(document.querySelectorAll('.svg-inject'));
 };
 
 function buildView(view)
@@ -232,6 +227,9 @@ function buildView(view)
 
         var tr = document.createElement("tr");
         var td = document.createElement("td");
+        td.style.border = "1px solid #FFFFFF";
+        td.style.padding = "20px";
+
         td.setAttribute("valign", "top");
         td.appendChild(divA);
         tr.appendChild(td);
@@ -239,6 +237,7 @@ function buildView(view)
 
         var tr = document.createElement("tr");
         var td = document.createElement("td");
+
         td.setAttribute("valign", "top");
         td.appendChild(divB);
         tr.appendChild(td);
@@ -479,16 +478,17 @@ function buildAlertList(showAll,size)
                 x = size / 3;
 
             svg.dataset.color = json.alerts[key].color;
-            svg.classList.add("svg-inject");
+            svg.classList.add("iconic");
             svg.classList.add("svg-grey");
             svg.style.width = size + "px";
             svg.style.height = size + "px";
-            svg.src = "img/" + key + ".svg";
-            //svg.setAttribute("data-fallback", "img/" + json.alerts[i].id + ".png");
+            svg.src = "svg/" + key + ".svg";
+            //svg.setAttribute("data-src", "svg/" + key + ".svg");
             span.style.position = "relative"; 
             span.style.zIndex = "1";
             span.id = "alert_" + key;
             span.appendChild(svg);
+            iconic.inject(svg);
 
             span.onclick = function (e) {
                 //console.log(this);
@@ -500,7 +500,7 @@ function buildAlertList(showAll,size)
                 {
                     json.alerts[this.id.substr(6)].enabled = true;
 
-                    this.children[1].src = "img/enabled.svg";
+                    this.children[1].src = "svg/enabled.svg";
 
                     var lightboxBody = document.getElementById("lightboxBody");
                     var lightboxTitle = document.getElementById("lightboxTitle");
@@ -620,7 +620,7 @@ function buildAlertList(showAll,size)
 
                         window.location = "#openModal";
                     }
-                    else if(this.id =="alert_wifi-alarm")
+                    else if(this.id =="alert_wifi-email")
                     {
                         var email = document.createElement("input");
                         var smtp = document.createElement("input");
@@ -664,7 +664,7 @@ function buildAlertList(showAll,size)
 
                 }else{
                     json.alerts[this.id.substr(6)].enabled = false;
-                    this.children[1].src = "img/disabled.svg";
+                    this.children[1].src = "svg/disabled.svg";
                 }
 
                 console.log("...set alert '" + this.id.substr(6) + "' " + json.alerts[this.id.substr(6)].enabled);
@@ -676,15 +676,16 @@ function buildAlertList(showAll,size)
             if(showAll)
             {
                 var overlay = document.createElement("img");
-                overlay.classList.add("svg-inject");
+                overlay.classList.add("iconic");
                 if(json.alerts[key].enabled)
                 {
-                    overlay.src = "img/enabled.svg";
+                    overlay.src = "svg/enabled.svg";
                 }else{
-                    overlay.src = "img/disabled.svg";
+                    overlay.src = "svg/disabled.svg";
                 }
                 overlay.style.cssText = "position:relative;top:" + x + "px;left:-" + x + "px;width:" + x + "px;height:" + x + "px;";
                 span.appendChild(overlay);
+                //iconic.inject(overlay);
             }
 
             td.appendChild(span);
@@ -786,7 +787,7 @@ function buildGaugeList(array,size,title)
 
 function streamInit()
 {
-    //console.log("serial.php?init=1");
+    //console.log("data.php?init=1");
 
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
@@ -813,13 +814,13 @@ function streamInit()
     }
 
     xhr.timeout = 6000;
-    xhr.open('GET', "http://" + json.server + "/serial.php?init=1",true);
+    xhr.open("GET", "data.php?init=1",true);
     xhr.send();
 };
 
 function streamReset(pid)
 {
-    //console.log("serial.php?reset=1&pid=" + pid);
+    //console.log("data.php?reset=1&pid=" + pid);
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
         if (xhr.readyState === 4) {
@@ -832,7 +833,7 @@ function streamReset(pid)
     }
 
     xhr.timeout = 1000;
-    xhr.open('GET', "serial.php?reset=1&pid=" + pid,true);
+    xhr.open('GET', "data.php?reset=1&pid=" + pid,true);
     xhr.send();
 };
 
@@ -855,7 +856,7 @@ function setColorAlert(id, color)
     svg.classList.remove("svg-orange");
     svg.classList.remove("svg-green");
     svg.classList.add("svg-" + color);
-}
+};
 
 function setBlinkAlert(i, id)
 {
@@ -888,7 +889,7 @@ function streamView()
 
     clearTimeout(streamTimer);
 
-    console.log("serial.php?stream=" + stream);
+    console.log("data.php?stream=" + stream);
 
     streamHttpRequest = new XMLHttpRequest();
     streamHttpRequest.items = stream.split(",");
@@ -1044,7 +1045,7 @@ function streamView()
     };
 
     streamHttpRequest.timeout = 10000;
-    streamHttpRequest.open('GET', "serial.php?stream=" + stream + "&loop=800&delay=" + streamHttpRequest.delay, true);
+    streamHttpRequest.open('GET', "data.php?stream=" + stream + "&loop=800&delay=" + streamHttpRequest.delay, true);
     streamHttpRequest.send();
 };
 

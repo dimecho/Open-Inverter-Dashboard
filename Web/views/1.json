@@ -1,5 +1,5 @@
 {
-    "server": "192.168.1.101:8081",
+    "server": "192.168.4.1:8080",
     "dashboard": [
         {
             "index": 0,
@@ -7,8 +7,8 @@
             "enabled": true,
             "units": "%",
             "title": "Battery",
-            "width": 525,
-            "height": 525,
+            "width": 345,
+            "height": 345,
             "highlights": [
                 {
                     "from": 0,
@@ -62,12 +62,12 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 2,
+            "index": 1,
             "renderTo": "CAN-speed",
             "enabled": true,
             "units": "Km\/h",
-            "width": 525,
-            "height": 525,
+            "width": 345,
+            "height": 345,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -133,12 +133,12 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 3,
+            "index": 0,
             "renderTo": "speed",
-            "enabled": true,
+            "enabled": false,
             "units": "1\/min x 1000",
-            "width": 525,
-            "height": 525,
+            "width": 345,
+            "height": 345,
             "minValue": 0,
             "maxValue": 10,
             "majorTicks": [
@@ -204,13 +204,13 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 1,
+            "index": 2,
             "renderTo": "temp",
             "enabled": true,
             "units": "\u00b0C",
             "title": "Temperature",
-            "width": 525,
-            "height": 525,
+            "width": 345,
+            "height": 345,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -284,8 +284,8 @@
         }
     ],
     "odometer": {
-        "pattern": "######.##",
-        "count": "200000.00",
+        "pattern": "######",
+        "count": "000000",
         "unit": "KM",
         "displayAngle": 6,
         "digitHeight": 20,
@@ -306,7 +306,7 @@
         },
         "odometer": {
             "show": false,
-            "enabled": false,
+            "enabled": true,
             "color": "svg-grey"
         },
         "battery": {
@@ -336,12 +336,12 @@
         },
         "wifi-ap": {
             "show": true,
-            "enabled": false,
+            "enabled": true,
             "color": "svg-blue"
         },
-        "wifi-alarm": {
+        "wifi-email": {
             "show": true,
-            "enabled": false,
+            "enabled": true,
             "color": "svg-blue"
         }
     },

@@ -1,5 +1,3 @@
-<p align="center"><img src="img/icon.png?raw=true"></p>
-
 # Build for Blackberry Playbook
 
 1) Download [BlackBerry Plug-in for Android Studio](https://developer.blackberry.com/android/tools/)
@@ -8,8 +6,14 @@
 
 3) Run "BlackBerry APK Packager"
 
-![Screenshot](img/apk2bar.png?raw=true)
+![bb_pkg](img/bb_pkg.png?raw=true)
 
 4) Convert .apk to .bar
 
-5) Upload to Blackberry using [PlayBook App Manager](https://www.gridbook.org/pb-app-mgr/)
+![Screenshot](img/apk2bar.png?raw=true)
+
+5) Run "BlackBerry Deploy"
+
+![bb_deploy](img/bb_deploy.png?raw=true)
+
+6) Install to Blackberry Playbook
