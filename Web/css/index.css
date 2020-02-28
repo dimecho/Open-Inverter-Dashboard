@@ -70,31 +70,34 @@ table {
 .tile {
   position: relative;
   text-align: center;
-  /*margin-top: 20px;*/
-  margin-left: 20px;
-  margin-right: 20px;
-  /*
-  background-color: #fff;
-  border: 1px solid white;
-  border-radius: 10px;
-  */
 }
-.tile__name {
+
+.tile_name {
   cursor: move;
   /*padding-bottom: 10px;*/
   border-bottom: 1px solid #FF7373;
 }
-.tile__list {
-  /*margin-top: 10px;*/
+
+#tile_Available {
+  height: 120px;
+  border: 10px dashed #7b7d7d;
 }
-.tile__list:last-child {
-  margin-right: 0;
-  min-height: 80px;
+
+#tile_Selected {
+  height: 80px;
 }
-.tile__list img {
+
+.tile_list img {
   cursor: move;
   margin: 10px;
   border-radius: 100%;
+}
+
+#backAvailable span {
+  position: relative;
+  top: 80px;
+  padding: 50px;
+  color: #7b7d7d;
 }
 
 .circle-green {
@@ -106,6 +109,7 @@ table {
   border-radius: 5px;
   background: #00ff00
 }
+
 .circle-yellow {
   margin: 10px;
   width: 10px;
@@ -126,9 +130,42 @@ input[type='text'], input[type='password'] {
   font-size:1.5em;
 }
 
+input[type='radio'], input[type='checkbox'] {
+  padding: 12px 20px;
+  -ms-transform: scale(2); /* IE */
+  -moz-transform: scale(2); /* FF */
+  -webkit-transform: scale(2); /* Safari and Chrome */
+  -o-transform: scale(2); /* Opera */
+  transform: scale(2);
+}
+
+input[type='button'] {
+  width: 200px;
+  background-color: #1b2631;
+  border: none;
+  color: #d0d3d4;
+  padding: 16px 32px;
+  font-size:1.5em;
+}
+
+.formtext {
+  display: inline;
+  margin-left: 20px;
+  margin-right: 20px;
+  font-size:1.5em;
+}
+
+h1 {
+  color: #4d5656;
+}
+
+select {
+  font-size:1.5em;
+}
+
 textarea {
   width: 100%;
-  font-size: 120%;
+  font-size: 140%;
   overflow:scroll;
 }
 

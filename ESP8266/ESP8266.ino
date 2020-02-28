@@ -1,21 +1,28 @@
-#include <RemoteDebug.h>
-#include <FS.h>
-#include <EEPROM.h>
+#ifdef ESP32
+#include <WiFi.h>
+#include <SPIFFS.h>
+#else
 #include <ESP8266WiFi.h>
+#include <FS.h>
+#endif
+
+#include <EEPROM.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
 
-RemoteDebug Debug;
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer updater;
 
 int WIFI_PHY_MODE = 1; //WIFI_PHY_MODE_11B = 1, WIFI_PHY_MODE_11G = 2, WIFI_PHY_MODE_11N = 3
 float WIFI_PHY_POWER = 20.5; //Max = 20.5dbm
 int ACCESS_POINT_MODE = 0;
-char ACCESS_POINT_SSID[] = "Dasboard";
+char ACCESS_POINT_SSID[] = "Dashboard";
 char ACCESS_POINT_PASSWORD[] = "dashboard123";
-int ACCESS_POINT_CHANNEL = 7;
+int ACCESS_POINT_CHANNEL = 11;
 int ACCESS_POINT_HIDE = 0;
+int DATA_LOG = 0; //Enable data logger
+int LOG_INTERVAL = 5; //seconds between data collection and write to SPIFFS
+
 bool phpTag[] = { false, false, false };
 const char text_html[] = "text/html";
 const char text_plain[] = "text/plain";
@@ -36,7 +43,6 @@ const char text_json[] = "application/json";
   #define MCP_8MHz_250kBPS_CFG2 (0xF1)
   #define MCP_8MHz_250kBPS_CFG3 (0x85)
 */
-char canMessage[128];  // Array to store serial string
 /*
   MISO=D7(GPIO12),MOSI=D6(GPIO13),SCLK=D5(GPIO14),CS=D2(GPIO4),INT=D4(GPIO2)
   https://arduino-esp8266.readthedocs.io/en/2.4.0-rc1/libraries.html#spi
@@ -47,7 +53,7 @@ char canMessage[128];  // Array to store serial string
   The pins would change to: MOSI=SD1,MISO=SD0,SCLK=CLK,HWCS=GPIO0
 */
 #define CAN_INT 2    // Set INT to pin GPIO2 (D4)
-MCP_CAN CAN(4);      // Set CS to pin GPIO4 (D2)
+MCP_CAN CAN0(4);      // Set CS to pin GPIO4 (D2)
 //=============================
 
 void setup()
@@ -74,6 +80,8 @@ void setup()
     NVRAM_Write(2, String(ACCESS_POINT_CHANNEL));
     NVRAM_Write(3, ACCESS_POINT_SSID);
     NVRAM_Write(4, ACCESS_POINT_PASSWORD);
+    NVRAM_Write(5, String(DATA_LOG));
+    NVRAM_Write(6, String(LOG_INTERVAL));
     SPIFFS.format();
   } else {
     ACCESS_POINT_MODE = NVRAM_Read(0).toInt();
@@ -83,6 +91,8 @@ void setup()
     s.toCharArray(ACCESS_POINT_SSID, s.length() + 1);
     String p = NVRAM_Read(4);
     p.toCharArray(ACCESS_POINT_PASSWORD, p.length() + 1);
+    DATA_LOG = NVRAM_Read(5).toInt();
+    LOG_INTERVAL = NVRAM_Read(6).toInt();
   }
   //EEPROM.end();
 
@@ -129,7 +139,40 @@ void setup()
   //===============
 
   server.on("/can/read", []() {
-    server.send(200, text_plain, canMessage);
+
+    server.sendHeader("Cache-Control", "no-cache");
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, text_plain, "");
+
+    if (CAN0.checkReceive() == CAN_MSGAVAIL)
+    {
+      unsigned char len = 0;
+      unsigned char rxBuf[8];
+
+      CAN0.readMsgBuf(&len, rxBuf);
+
+      server.sendContent(String(CAN0.getCanId()));
+      server.sendContent(":");
+
+      for (byte i = 0; i < len; i++) {
+        server.sendContent(String(rxBuf[i]));
+        server.sendContent(",");
+      }
+    }
+  });
+  server.on("/can/write", []() {
+    unsigned char stmp[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+    CAN0.sendMsgBuf(0x00, 0, 8, stmp);
+
+    server.send(200, text_plain, "OK");
+  });
+  server.on("/can/sleep", []() {
+    CAN0.sleep();
+    server.send(200, text_plain, "OK");
+  });
+  server.on("/can/wake", []() {
+    CAN0.wake();
+    server.send(200, text_plain, "OK");
   });
   server.on("/format", HTTP_GET, []() {
     String result = SPIFFS.format() ? "OK" : "Error";
@@ -148,7 +191,32 @@ void setup()
   server.on("/nvram", HTTP_POST, []() {
     NVRAMUpload();
   });
+  server.on("/data.php", HTTP_GET, []() {
+    if (server.hasArg("init"))
+    {
+      Serial.end();
+      Serial.begin(server.arg("init").toInt(), SERIAL_8N1);
 
+      server.send(200, text_plain, "OK");
+    }
+    else if (server.hasArg("read"))
+    {
+      String out = "";
+      if (Serial.available()) {
+        out = Serial.readString();
+      }
+      server.send(200, text_plain, out);
+    }
+    else if (server.hasArg("command"))
+    {
+      String out = readSerial(server.arg("command"));
+      SPIFFS.remove("/data.txt");
+      server.send(200, text_plain, out);
+    }
+  });
+  server.on("/views/save.php", HTTP_GET, []() {
+    server.send(200, text_plain, "OK");
+  });
   server.on("/", []() {
     if (SPIFFS.exists("/index.html")) {
       server.sendHeader("Location", "/index.html");
@@ -164,22 +232,14 @@ void setup()
   });
   server.begin();
 
-  //===================
-  //Remote Telnet Debug
-  //===================
-  Debug.begin("dashboard"); // Telnet server
-  Debug.setResetCmdEnabled(true); // Enable the reset command
-
   //====================
   //CAN-Bus
   //====================
-  //if (CAN.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK)
-  if (CAN.begin(CAN_250KBPS) == CAN_OK)
+  if (CAN0.begin(CAN_250KBPS) == CAN_OK)
   {
     Serial.println("MCP2515 Initialized Successfully!");
-    //CAN.setMode(MODE_NORMAL);
-    //CAN.setMode(MODE_LOOPBACK);
-    //pinMode(CAN_INT, INPUT);
+    //CAN0.setMode(MODE_LOOPBACK);
+    CAN0.setMode(MODE_NORMAL);
   } else {
     Serial.println("Error Initializing MCP2515...");
   }
@@ -187,77 +247,38 @@ void setup()
 
 void loop()
 {
-  Debug.handle();
   server.handleClient();
 
   //====================
   //CAN-Bus
   //====================
-
-  //if (!digitalRead(CAN0_INT))
-  if (CAN.checkReceive() == CAN_MSGAVAIL)
-  {
+  /*
+    if (CAN0.checkReceive() == CAN_MSGAVAIL)
+    {
     unsigned int rxId;
     unsigned char len = 0;
     unsigned char rxBuf[8];
 
-    CAN.readMsgBuf(&len, rxBuf);      // Read data: len = data length, buf = data byte(s)
+    CAN0.readMsgBuf(&len, rxBuf);      // Read data: len = data length, buf = data byte(s)
 
-    rxId = CAN.getCanId();
+    rxId = CAN0.getCanId();
 
-    Debug.print("<"); Debug.print(rxId); Debug.print(",");
+    //Serial.print(canMessage);
 
-    if ((rxId & 0x80000000) == 0x80000000)
-      sprintf(canMessage, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
-    else
-      sprintf(canMessage, "Standard ID: 0x%.3lX       DLC: %1d  Data:", rxId, len);
-
-    //Debug.print(canMessage);
-
-    if ((rxId & 0x40000000) == 0x40000000) {
-      sprintf(canMessage, " REMOTE REQUEST FRAME");
-      //Debug.print(canMessage);
+    if ((rxId & 0x80000000) == 0x80000000) {
+      Serial.printf("Extended ID: 0x%.8lX DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
     } else {
-      for (byte i = 0; i < len; i++) {
-        //sprintf(canMessage, " 0x%.2X", rxBuf[i]);
-        //Debug.println(canMessage);
-        Debug.print(rxBuf[i]); Debug.print(",");
-      }
-      Debug.print(">");
+      Serial.printf("Standard ID: 0x%.3lX DLC: %1d  Data:", rxId, len);
     }
-    Debug.println();
 
-  }
-  /*
-    if (CAN.checkError() == CAN_CTRLERROR) {
-    Serial.print("Error register value: ");
-    byte tempErr = CAN.getError() & MCP_EFLG_ERRORMASK; // We are only interested in errors, not warnings.
-    Debug.println(tempErr, BIN);
+    Serial.print("<"); Serial.print(rxId); Serial.print(",");
 
-    Debug.print("Transmit error counter register value: ");
-    tempErr = CAN.errorCountTX();
-    Debug.println(tempErr, DEC);
-
-    Debug.print("Receive error counter register value: ");
-    tempErr = CAN.errorCountRX();
-    Debug.println(tempErr, DEC);
+    for (byte i = 0; i < len; i++) {
+      Serial.print(rxBuf[i]); Serial.print(",");
+    }
+    Serial.print(">"); Serial.println();
     }
   */
-  /*
-    unsigned char stmp[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    if (Serial.available()) {
-    stmp[0] = Serial.read();
-    if (stmp[0] == 'l') {
-      CAN.setMode(MCP_LOOPBACK);
-    }
-    if (stmp[0] == 'n') {
-      CAN.setMode(MCP_NORMAL);
-    }
-    }
-  */
-  //CAN0.sendMsgBuf(0x00, 0, 8, stmp);
-  //delay(100);                       // send data per 100ms
-  //====================
 }
 
 //=============
@@ -304,7 +325,7 @@ void NVRAMUpload()
   out += "\n...Rebooting";
   out += "</pre>";
 
-  server.sendHeader("Refresh", "8; url=/esp8266.php");
+  server.sendHeader("Refresh", "8; url=/index.html");
   server.send(200, text_html, out);
 
   WiFi.disconnect(true);  //Erases SSID/password
@@ -341,15 +362,15 @@ String NVRAM_Read(uint32_t address)
 
 bool HTTPServer(String file)
 {
-  Debug.println((server.method() == HTTP_GET) ? "GET" : "POST");
-  Debug.println(file);
+  //Serial.println((server.method() == HTTP_GET) ? "GET" : "POST");
+  //Serial.println(file);
 
   if (SPIFFS.exists(file))
   {
     File f = SPIFFS.open(file, "r");
     if (f)
     {
-      //Debug.println(f.size());
+      //Serial.println(f.size());
 
       String contentType = getContentType(file);
 
@@ -406,7 +427,7 @@ String readSerial(String cmd)
   char b[255];
   String output = flushSerial();
 
-  //Debug.println(cmd);
+  //Serial.println(cmd);
   if (output.substring(0, 2) != "2D") //Empty Bootloader detection
   {
     Serial.print(cmd);
@@ -421,7 +442,7 @@ String readSerial(String cmd)
       output += b;
     } while (len > 0);
   }
-  //Debug.println(output);
+  //Serial.println(output);
 
   return output;
 }
@@ -437,7 +458,7 @@ String readStream(String cmd, int _loop, int _delay)
   server.send(200, text_plain, "");
   //server.send(200, text_html, "");
 
-  //Debug.println(cmd);
+  //Serial.println(cmd);
   if (output.substring(0, 2) != "2D") //Empty Bootloader detection
   {
     server.sendContent(output);
@@ -466,7 +487,7 @@ String readStream(String cmd, int _loop, int _delay)
       //client.print(output);
       //client.flush();
 
-      //Debug.println(output);
+      //Serial.println(output);
       delay(_delay);
     }
   }

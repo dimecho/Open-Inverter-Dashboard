@@ -1,0 +1,24 @@
+{
+    "menu": [
+    	{
+            "icon": "view",
+            "title": "View",
+            "href": "#openModal"
+        },
+        {
+            "icon": "wifi",
+            "title": "Wireless Settings",
+            "href": "#openModal"
+        },
+        {
+            "icon": "email",
+            "title": "Alarm Notifications",
+            "href": "#openModal"
+        },
+        {
+            "icon": "background",
+            "title": "Background",
+            "href": "#openModal"
+        }
+    ]
+}

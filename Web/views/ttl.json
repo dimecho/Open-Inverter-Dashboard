@@ -1,5 +1,4 @@
 {
-    "server": "192.168.4.1:8080",
     "dashboard": [
         {
             "index": 0,
@@ -7,8 +6,8 @@
             "enabled": true,
             "units": "%",
             "title": "Battery",
-            "width": 345,
-            "height": 345,
+            "width": 418,
+            "height": 418,
             "highlights": [
                 {
                     "from": 0,
@@ -62,12 +61,12 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 1,
-            "renderTo": "CAN-speed",
+            "index": 2,
+            "renderTo": "rpm",
             "enabled": true,
             "units": "Km\/h",
-            "width": 345,
-            "height": 345,
+            "width": 418,
+            "height": 418,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -133,12 +132,12 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 0,
+            "index": 3,
             "renderTo": "speed",
-            "enabled": false,
+            "enabled": true,
             "units": "1\/min x 1000",
-            "width": 345,
-            "height": 345,
+            "width": 418,
+            "height": 418,
             "minValue": 0,
             "maxValue": 10,
             "majorTicks": [
@@ -204,13 +203,13 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 2,
+            "index": 1,
             "renderTo": "temp",
             "enabled": true,
             "units": "\u00b0C",
             "title": "Temperature",
-            "width": 345,
-            "height": 345,
+            "width": 418,
+            "height": 418,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -299,14 +298,9 @@
         "colorOff": "#4b1e05"
     },
     "alerts": {
-        "background": {
-            "show": false,
-            "enabled": false,
-            "color": "svg-grey"
-        },
         "odometer": {
             "show": false,
-            "enabled": true,
+            "enabled": false,
             "color": "svg-grey"
         },
         "battery": {
@@ -323,26 +317,6 @@
             "show": true,
             "enabled": true,
             "color": "svg-orange"
-        },
-        "sound": {
-            "show": true,
-            "enabled": false,
-            "color": "svg-blue"
-        },
-        "rfid": {
-            "show": true,
-            "enabled": false,
-            "color": "svg-blue"
-        },
-        "wifi-ap": {
-            "show": true,
-            "enabled": true,
-            "color": "svg-blue"
-        },
-        "wifi-email": {
-            "show": true,
-            "enabled": true,
-            "color": "svg-blue"
         }
     },
     "sounds": [
@@ -353,15 +327,7 @@
             "id": "deepengine2"
         }
     ],
-    "rfid": [
-        {
-            "id": "2434354577"
-        },
-        {
-            "id": "2434354578"
-        }
-    ],
-    "wifi": {
+    "alert": {
         "email": "",
         "smtp": "",
         "username": "",

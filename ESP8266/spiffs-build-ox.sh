@@ -5,6 +5,7 @@ cp -rf  ../Web ./spiffs
 rm ./spiffs/img/screenshot.png
 
 if [ ! -f tools/mkspiffs ]; then
+	mkdir tools
     curl -L -o tools/mkspiffs-0.2.3-arduino-esp8266-osx.tar.gz -k -C - https://github.com/igrr/mkspiffs/releases/download/0.2.3/mkspiffs-0.2.3-arduino-esp8266-osx.tar.gz
     cd tools
     gunzip -c mkspiffs-0.2.3-arduino-esp8266-osx.tar.gz | tar xopf -

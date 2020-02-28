@@ -1,1 +1,13 @@
-<svg id="Capa_1" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" style="enable-background:new 0 0 19.804 19.804" xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 19.804 19.804" height="512px" width="512px" version="1.1" y="0px" x="0px" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><g id="g4224"><path id="path4226" d="m9.902 0.001c-5.469 0-9.902 4.432-9.902 9.902 0 5.469 4.433 9.9 9.902 9.9 5.471 0 9.902-4.433 9.902-9.9 0-5.469-4.431-9.902-9.902-9.902zm0 18.723c-4.87 0-8.819-3.947-8.819-8.819 0-4.873 3.949-8.819 8.819-8.819 4.872 0 8.82 3.947 8.82 8.819-0.002 4.869-3.949 8.819-8.82 8.819zm-2.966-4.538h1.612v2.672h-1.612v-2.672zm2.444 0h1.612v2.672h-1.612v-2.672zm2.402 0h1.612v2.672h-1.612v-2.672zm-0.564-3.68c0 0.455-0.371 0.826-0.825 0.826-0.438 0-0.798-0.342-0.824-0.774l-2.911-3.624 3.736 2.748c0.453 0 0.824 0.369 0.824 0.824zm-6.008 1.374l0.715 0.716-1.342 1.343-0.716-0.717 1.343-1.342zm-0.623-2.498h-1.898v-1.012h1.898v1.012zm0.408-5.513l1.342 1.343-0.716 0.715-1.342-1.343 0.716-0.715zm5.413 0.463h-1.012v-1.898h1.012v1.898zm4.115 1.978l-0.717-0.715 1.344-1.343 0.715 0.716-1.342 1.342zm2.884 2.06v1.012h-1.897v-1.012h1.897zm-2.538 3.713l1.344 1.342-0.715 0.715-1.344-1.342 0.715-0.715z" fill="#006DF0"/></g></svg>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" width="192px" height="320px" viewBox="-1 -1 12 20">
+<g id="cg" style="fill-rule:evenodd; stroke:#FFFFFF; stroke-width:0.25; stroke-opacity:1; stroke-linecap:butt; stroke-linejoin:miter;">
+  <polygon id="a" points=" 1, 1  2, 0  8, 0  9, 1  8, 2  2, 2" fill="#DDDDDD"/>
+  <polygon id="b" points=" 9, 1 10, 2 10, 8  9, 9  8, 8  8, 2" fill="#DDDDDD"/>
+  <polygon id="c" points=" 9, 9 10,10 10,16  9,17  8,16  8,10" fill="#FF0000"/>
+  <polygon id="d" points=" 9,17  8,18  2,18  1,17  2,16  8,16" fill="#DDDDDD"/>
+  <polygon id="e" points=" 1,17  0,16  0,10  1, 9  2,10  2,16" fill="#DDDDDD"/>
+  <polygon id="f" points=" 1, 9  0, 8  0, 2  1, 1  2, 2  2, 8" fill="#DDDDDD"/>
+  <polygon id="g" points=" 1, 9  2, 8  8, 8  9, 9  8,10  2,10" fill="#FF0000"/>
+</g>
+</svg>
