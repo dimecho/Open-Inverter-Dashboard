@@ -1,15 +1,19 @@
 {
+    "vehicle": "",
     "serial": 115200,
     "canbus": 250,
     "analog": [
         {
             "index": 0,
-            "renderTo": "udc",
+            "serial": "",
+            "canbus": "",
+            "logic": "",
             "enabled": true,
+            "renderTo": "udc",
             "units": "%",
             "title": "Battery",
-            "width": 479,
-            "height": 479,
+            "width": 399,
+            "height": 399,
             "highlights": [
                 {
                     "from": 0,
@@ -63,12 +67,15 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 2,
-            "renderTo": "rpm",
+            "index": 1,
+            "serial": "",
+            "canbus": "",
+            "logic": "",
             "enabled": true,
+            "renderTo": "rpm",
             "units": "Km\/h",
-            "width": 479,
-            "height": 479,
+            "width": 399,
+            "height": 399,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -134,12 +141,15 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 3,
-            "renderTo": "speed",
+            "index": 2,
+            "serial": "speed",
+            "canbus": "",
+            "logic": "",
             "enabled": true,
+            "renderTo": "speed",
             "units": "1\/min x 1000",
-            "width": 479,
-            "height": 479,
+            "width": 399,
+            "height": 399,
             "minValue": 0,
             "maxValue": 10,
             "majorTicks": [
@@ -205,13 +215,16 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 1,
-            "renderTo": "temp",
+            "index": 3,
+            "serial": "tmpm,tmphs",
+            "canbus": "",
+            "logic": "",
             "enabled": true,
+            "renderTo": "temp",
             "units": "\u00b0C",
             "title": "Temperature",
-            "width": 479,
-            "height": 479,
+            "width": 399,
+            "height": 399,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -287,6 +300,11 @@
     "digital": [
         {
             "index": 0,
+            "serial": "",
+            "canbus": "",
+            "logic": "",
+            "enabled": true,
+            "renderTo": "odometer",
             "pattern": "######",
             "count": "000000",
             "unit": "KM",
@@ -304,34 +322,27 @@
     ],
     "alerts": {
         "battery": {
-            "show": true,
+            "serial": "udc,udcmax",
+            "canbus": "",
+            "logic": "",
             "enabled": true,
             "color": "svg-red"
         },
         "temp": {
-            "show": true,
+            "serial": "",
+            "canbus": "",
+            "logic": "",
             "enabled": true,
             "color": "svg-red"
         },
         "emergency": {
-            "show": true,
+            "serial": "",
+            "canbus": "",
+            "logic": "",
             "enabled": true,
             "color": "svg-orange"
         }
     },
-    "sounds": [
-        {
-            "id": "deepengine"
-        },
-        {
-            "id": "deepengine2"
-        }
-    ],
-    "notify": {
-        "email": "",
-        "smtp": "",
-        "username": "",
-        "password": ""
-    },
-    "background": "blackboard.png"
+    "backgroundColor": "#17202a",
+    "backgroundImage": "blackboard.png"
 }

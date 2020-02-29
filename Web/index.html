@@ -19,7 +19,6 @@
     <body>
 		<div id="alert" onclick="this.style.display='none';"></div>
 		<label>
-            <!-- <input type="checkbox" /> -->
     		<div class="card">
                 <div class="front"></div>
                 <div class="back"></div>
@@ -32,5 +31,9 @@
                 <div class="form-group row" id="lightboxBody" style="margin-left: auto; margin-right: auto;"></div>
             </div>
         </div>
+        <form action="snapshot.php" method="POST" enctype="multipart/form-data">
+            <input type="file" name="file" class="snapshotUpload" hidden onchange="javascript:this.form.submit();" accept=".json">
+            <input type="submit" hidden>
+        </form>
     </body>
 </html>

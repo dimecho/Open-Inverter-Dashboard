@@ -1,5 +1,15 @@
 {
     "menu": [
+        {
+            "icon": "export",
+            "title": "Export View",
+            "href": "snapshotExport()"
+        },
+        {
+            "icon": "import",
+            "title": "Import View",
+            "href": "snapshotImport()"
+        },
     	{
             "icon": "view",
             "title": "View",
@@ -24,11 +34,6 @@
             "icon": "background",
             "title": "Background",
             "href": "#openModal"
-        },
-        {
-            "icon": "save",
-            "title": "Save View",
-            "href": "/snapshot"
         },
         {
             "icon": "chip",

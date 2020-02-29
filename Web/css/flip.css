@@ -29,8 +29,6 @@
 }
 
 .card .back {
-	background: #222;
-	color: #FFF;
 	-webkit-transform: rotateX(180deg);
 	transform: rotateX(180deg);
     cursor: pointer;

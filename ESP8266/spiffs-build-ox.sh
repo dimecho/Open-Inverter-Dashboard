@@ -20,4 +20,4 @@ for f in $(find spiffs -type f -name '*.*' ! -name '*.json'); do
     mv "$f.gz" "$f"
 done
 
-./tools/mkspiffs -c ./spiffs/ -b 8192 -p 256 -s 500000 flash-spiffs.bin
+./tools/mkspiffs -c ./spiffs/ -b 8192 -p 256 -s 480000 flash-spiffs.bin

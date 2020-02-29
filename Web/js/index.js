@@ -3,8 +3,6 @@ var json = "";
 
 var blinkAlert = [];
 
-var odometer;
-
 var dashboardHidden = [];
 var dashboardAnalog = [];
 var dashboardDigital = [];
@@ -75,8 +73,9 @@ document.addEventListener("DOMContentLoaded", function(event)
         //console.log(data);
         json = data;
 
-        document.body.style.backgroundImage = "url('views/bg/" + data.background + "')"; 
-
+        document.body.style.backgroundColor = data.backgroundColor;
+        document.body.style.backgroundImage = "url('views/bg/" + data.backgroundImage + "')";
+        
         buildView("front");
         renderView("front");
         animateView();
@@ -173,8 +172,8 @@ function sizeView(view)
         var maxH = [];
         for (var i = 0; i < json.analog.length; i++)
         {
-            var t = document.getElementById("canvasIndex" + i);
-            console.log("canvasIndex" + i + " height=" + t.height);
+            var t = document.getElementById("canvasAnalogIndex" + i);
+            console.log("canvasAnalogIndex" + i + " height=" + t.height);
             maxH.push(t.height);
         }
         dashboardHeight = Math.max.apply(null,maxH);
@@ -191,55 +190,25 @@ function sizeView(view)
         divC.parentElement.height = Math.round(getHeight() / 6);
         divB.parentElement.height = getHeight() - divM.parentElement.height - divA.parentElement.height - divC.parentElement.height - adjustHeight*2;
 
-        for (var i = 0; i < json.analog.length; i++)
-        {
+        //TODO: Better dynamic sizing
+        for (var i = 0; i < json.analog.length; i++) {
             var img = document.getElementById("_" + json.analog[i].renderTo);
             img.width = img.parentElement.parentElement.parentElement.parentElement.height;
+        }
+        for (var i = 0; i < json.digital.length; i++) {
+            var img = document.getElementById("_" + json.digital[i].renderTo);
+            img.width = img.parentElement.parentElement.parentElement.parentElement.height * 1.5;
         }
     }
 };
 
-function buildOdometer(view)
+function buildMenu()
 {
-    //var odometer = CANRead("distance");
-
-    clearTimeout(streamDigitalTimer);
-    
-    var tr = document.getElementById(view + "Odometer");
-    tr.innerHTML = "";
-
-    console.log("... build odometer " + json.alerts.odometer.enabled);
-
-    if(json.alerts.odometer.enabled === true)
-    {
-        var td = document.createElement("td");
-        td.colSpan = json.analog.length;
-
-        var canvasOdometer = document.createElement("canvas");
-        canvasOdometer.id = "odometer";
-        //canvasOdometer.style="position:relative; top:-" + (getHeight() - dashboardHeight) + "px;";
-        canvasOdometer.height = adjustHeight-10;
-
-        td.appendChild(canvasOdometer);
-        tr.appendChild(td);
-
-        odometer = new SegmentDisplay("odometer");
-        odometer.pattern = json.odometer.pattern;
-        odometer.colorOn = json.odometer.colorOn;
-        odometer.colorOff = json.odometer.colorOff;
-        odometer.draw();
-        odometer.setValue(json.odometer.count);
-        //updateOdometer(parseFloat(json.odometer.count));
-    }
-};
-
-function buildMenu(view)
-{
-    var menu = document.getElementById(view + "Menu");
-
     loadJSON("js/menu.json", function(data)
     {
         console.log(data);
+
+        var menu = document.getElementById("backMenu");
 
         for (var key in data.menu)
         {
@@ -276,12 +245,12 @@ function buildMenu(view)
 
                 if(this.id =="menu_background")
                 {
-                    var ul = document.createElement("ul");
-                    ul.classList.add("slides");
-
                     //TODO: loop through all background
                     loadJSON("views/bg/index.json", function(data)
                     {
+                        var ul = document.createElement("ul");
+                        ul.classList.add("slides");
+
                         var nav_dots = document.createElement("li");
                         nav_dots.classList.add("nav-dots");
 
@@ -336,39 +305,45 @@ function buildMenu(view)
 
                             img.onclick = function (e) {
                                 //console.log(this.src);
-                                json.background = this.src;
+                                json.backgroundImage = this.src;
                                 document.body.style.backgroundImage = "url('views/bg/" + this.src + "')";
                                 window.location = "#close";
                             };
                         }
                         ul.appendChild(nav_dots);
+                        lightboxBody.appendChild(ul);
                     });
-
-                    lightboxBody.appendChild(ul);
                 }
                 else if(this.id =="menu_view")
                 {
-                    var center = document.createElement("center");
-                    var select = document.createElement("select");
-
                     loadJSON("views/index.json", function(data) {
+
+                        var center = document.createElement("center");
+                        var select = document.createElement("select");
+
                         for (var key in data.index) {
                             var opt = document.createElement('option');
                             opt.value = data.index[key].file;
+                            console.log(view);
+                            if(opt.value == view) {
+                                console.log(view);
+                                opt.selected = true;
+                            }else{
+                                opt.selected = false;
+                            }
                             opt.append(data.index[key].name);
                             select.appendChild(opt);
                         }
+                        center.appendChild(select);
+                        lightboxBody.appendChild(center);
+
+                        select.onchange = function () {
+                            //console.log(this.value);
+                            window.location = "#close";
+                            setCookie("view", this.value, 360);
+                            location.reload();
+                        };
                     });
-
-                    center.appendChild(select);
-                    lightboxBody.appendChild(center);
-
-                    select.onchange = function () {
-                        //console.log(this.value);
-                        window.location = "#close";
-                        setCookie("view", this.value, 360);
-                        location.reload();
-                    };
                 }
                 else if(this.id =="menu_rfid")
                 {
@@ -655,7 +630,11 @@ function buildMenu(view)
                     */
                 }
 
-                window.location = this.href;
+                if(this.href.indexOf("()") != -1) {
+                    eval(this.href);
+                }else{
+                    window.location = this.href;
+                }
             };
 
             menu.appendChild(span);
@@ -692,27 +671,45 @@ function buildAlerts(view)
 function buildView(view)
 {
     var side = document.getElementsByClassName(view);
-    var table = document.createElement("table");
-    var tr = document.createElement("tr");
-
-    table.id = view + "Table";
-
+    
     if(view === "front")
     {
-        for (var i = 0, l = json.analog.length; i < l; i++)
+    	var table = document.createElement("table");
+    	var tr = document.createElement("tr");
+
+        for (var i = 0; i < json.analog.length; i++)
         {
-            var td = document.getElementById( "canvasIndex" + i);
+            var td = document.getElementById("canvasAnalogIndex" + i);
 
             if (!(td instanceof HTMLCanvasElement)) {
 
                 var td = document.createElement("td");
-                td.id = "canvasIndex" + i;
+                td.id = "canvasAnalogIndex" + i;
                 tr.appendChild(td);
 
                 json.analog[i].width = Math.round(getWidth()/3);
                 json.analog[i].height = json.analog[i].width;
             }
         }
+        table.appendChild(tr);
+        side[0].appendChild(table);
+
+        table = document.createElement("table");
+        tr = document.createElement("tr");
+
+        for (var i = 0; i < json.digital.length; i++)
+        {
+            var td = document.getElementById("canvasDigitalIndex" + i);
+
+            if (!(td instanceof HTMLCanvasElement)) {
+
+                var td = document.createElement("td");
+                td.id = "canvasDigitalIndex" + i;
+                tr.appendChild(td);
+            }
+        }
+        table.appendChild(tr);
+        side[0].appendChild(table);
 
         side[0].onclick = function () {
 
@@ -732,6 +729,8 @@ function buildView(view)
         };
 
     }else if (view === "back") {
+        
+        side[0].style.background = document.body.style.backgroundColor;
 
         var divM = document.createElement("div");
         var divA = document.createElement("div");
@@ -778,14 +777,16 @@ function buildView(view)
         tr.appendChild(td);
         table.appendChild(tr);
 
+        side[0].appendChild(table);
+
         side[0].onclick = function () {
             //console.log(this);
             _alert.style.display = "none";
 
             renderView("front");
 
-            setTimeout(function(){
-                side[0].innerHTML = "";
+            setTimeout(function() {
+                side[0].innerHTML = ""; //empty view
                 animateView();
                 saveView();
                 setTimeout(function() {
@@ -796,17 +797,83 @@ function buildView(view)
         };
     }
 
-    table.appendChild(tr);
-    /*
-    var tr = document.createElement("tr");
-    tr.id = view + "Odometer";
-    table.appendChild(tr);
-	*/
+    var table = document.createElement("table");
     var tr = document.createElement("tr");
     tr.id = view + "Alerts";
     table.appendChild(tr);
 
     side[0].appendChild(table);
+};
+
+function renderViewBuild(g)
+{
+	//var front = document.getElementsByClassName("front");
+
+	for (var i = 0, l = g.length; i < l; i++)
+    {
+        var t = "Analog";
+        if(g[i].pattern != undefined) {
+            t = "Digital";
+        }
+
+        var render = document.getElementById(g[i].renderTo);
+        var td = document.getElementById("canvas" + t + "Index" + g[i].index);
+
+        if(g[i].enabled)
+        {
+            //console.log(gauge[i].renderTo);
+
+            stream += "," + g[i].serial;
+
+            if (render instanceof HTMLCanvasElement)
+            {
+                //if element exists we want to verify canvasAnalogIndex is correct
+                
+                //console.log(render.parentElement.id + " > " + g[i].index);
+
+                if(render.parentElement.id !== "canvas" + t + "Index" + g[i].index)
+                {
+                    console.log("index incorrect ...moving canvas");
+
+                    render.parentElement.width = 0;
+                    render.remove();
+                    td.appendChild(render);
+                }
+
+            }else{
+                //console.log(JSON.stringify(g[i],null, 2));
+
+                var canvas = document.createElement("canvas");
+                canvas.id = g[i].renderTo;
+                td.appendChild(canvas);
+
+                if(g[i].pattern != undefined) {
+                    var sd = new SegmentDisplay(g[i].renderTo);
+                    sd.pattern = g[i].pattern;
+                    sd.colorOn = g[i].colorOn;
+                    sd.colorOff = g[i].colorOff;
+                    sd.draw();
+                    sd.setValue(g[i].count);
+            	}else{
+					new RadialGauge(g[i]).draw();
+            	}
+            }
+            if(g[i].pattern != undefined) {
+                dashboardDigital.push(g[i]);
+            }else{
+                dashboardAnalog.push(g[i]);
+            }
+        }else{
+
+            if (render instanceof HTMLCanvasElement) {
+                //console.log("...hide canvas " + g[i].renderTo);
+                render.parentElement.width = 0;
+                render.remove();
+            }
+            
+            dashboardHidden.push(g[i]);
+        }
+    }
 };
 
 function renderView(view)
@@ -816,71 +883,13 @@ function renderView(view)
     if(view === "front")
     {
         stream = "din_ocur";
-        dashboardAnalog = [];
+
         dashboardHidden = [];
+        dashboardAnalog = [];
+        dashboardDigital = [];
 
-        var front = document.getElementsByClassName("front");
-
-        for (var i = 0, l = json.analog.length; i < l; i++)
-        {
-            var render = document.getElementById(json.analog[i].renderTo);
-            var td = document.getElementById("canvasIndex" + json.analog[i].index);
-
-            if(json.analog[i].enabled)
-            {
-                //console.log(json.analog[i].renderTo);
-
-                switch (json.analog[i].renderTo) {
-                    case "udc":
-                    stream += ",udc,udcmax";
-                    break;
-                case "speed":
-                    stream += ",speed";
-                    break;
-                case "temp":
-                    stream += ",tmpm,tmphs";
-                    break;
-                }
-
-                if (render instanceof HTMLCanvasElement)
-                {
-                    //if element exists we want to verify canvasindex is correct
-                    //console.log(render.parentElement.id + " > " + json.analog[i].index);
-
-                    if(render.parentElement.id !== "canvasIndex" + json.analog[i].index)
-                    {
-                        console.log("index incorrect ...moving canvas");
-
-                        render.parentElement.width = 0;
-                        render.remove();
-                        td.appendChild(render);
-                    }
-
-                }else{
-                    //console.log(JSON.stringify(json.analog[i],null, 2));
-
-                    var canvas = document.createElement("canvas");
-                    canvas.id = json.analog[i].renderTo;
-                    td.appendChild(canvas);
-
-                    new RadialGauge(json.analog[i]).draw();
-                }
-
-                dashboardAnalog.push(json.analog[i]);
-
-            }else{
-
-                if (render instanceof HTMLCanvasElement) {
-                    //console.log("...hide canvas " + json.analog[i].renderTo);
-                    render.parentElement.width = 0;
-                    render.remove();
-                }
-
-                dashboardHidden.push(json.analog[i]);
-            }
-        }
-
-        //buildOdometer(view);
+        renderViewBuild(json.analog);
+        renderViewBuild(json.digital);
 
         /*
         for (i in json.sounds)
@@ -903,7 +912,7 @@ function renderView(view)
         
     }else if (view === "back") {
 
-        buildMenu("back");
+        buildMenu();
 
         var divA = document.getElementById("backAvailable");
         var divB = document.getElementById("backAnalogSelected");
@@ -986,24 +995,35 @@ function sortView(list, event, enabled)
 
     for (var e = 0; e < el.children.length; e++)
     {
-        for (i in json.analog)
+        for (a in json.analog)
         {
-            if ("_" + json.analog[i].renderTo === el.children[e].id)
+            if ("_" + json.analog[a].renderTo === el.children[e].id)
             {
                 //console.log(el.children[e].id + ":" + e);
                 
-                json.analog[i].index = e;
-                json.analog[i].enabled = enabled;
+                json.analog[a].index = e;
+                json.analog[a].enabled = enabled;
+                break;
+            }
+        }
+        for (d in json.digital)
+        {
+            if ("_" + json.digital[d].renderTo === el.children[e].id)
+            {
+                //console.log(el.children[e].id + ":" + e);
+                
+                json.digital[d].index = e;
+                json.digital[d].enabled = enabled;
                 break;
             }
         }
 
         for (var i = 0, l = document.gauges.length; i < l; i++)
         {
-            var gauge = document.gauges[i];
-            if ("_" + gauge.options.renderTo == el.children[e].id) {
-                gauge.options.index = e;
-                gauge.options.enabled = enabled;
+            var g = document.gauges[i];
+            if ("_" + g.options.renderTo == el.children[e].id) {
+                g.options.index = e;
+                g.options.enabled = enabled;
                 break;
             }
         }
@@ -1019,7 +1039,7 @@ function buildAlertList(showAll,size)
     for (var key in json.alerts)
     {
         //console.log(json.alerts[i].svg);
-        if((json.alerts[key].show == true && json.alerts[key].enabled == true) || showAll) {
+        if(json.alerts[key].enabled == true || showAll) {
             
             if(showAll === false)
                 switch (key) {
@@ -1082,7 +1102,6 @@ function buildAlertList(showAll,size)
 
                 console.log("...set alert '" + this.id.substr(6) + "' " + json.alerts[this.id.substr(6)].enabled);
 
-                //buildOdometer("front");
                 //buildAlerts("front");
             };
 
@@ -1108,8 +1127,10 @@ function buildAlertList(showAll,size)
     return td;
 };
 
-function buildGaugeList(array,id,title)
+function buildGaugeList(g,id,title)
 {
+	//console.log(g);
+
     var tile = document.createElement("div");
     tile.classList.add("tile");
     //tile.dataset.force = array.length;
@@ -1128,24 +1149,37 @@ function buildGaugeList(array,id,title)
     
     var back = document.getElementsByClassName("back");
     
-    for (var i = 0; i < array.length; i++) {
+    //TODO: sort by index before generating img
+    for (var i = 0; i < g.length; i++)
+    {
+        var e = g[i].enabled;
 
-        var e = array[i].enabled;
-
-        array[i].enabled = false; //does not put these into active gauge list
-        array[i].renderTo = "_" + array[i].renderTo; //set temporary id
+        g[i].enabled = false; //does not put these into active gauge list
+        g[i].renderTo = "_" + g[i].renderTo; //set temporary id
 
         var canvas = document.createElement("canvas");
-        canvas.id = array[i].renderTo;
+        canvas.id = g[i].renderTo;
 
         back[0].appendChild(canvas);
-        var gauge = new RadialGauge(array[i]).draw();
+        
+        if(g[i].pattern != undefined) {
+        	var sd = new SegmentDisplay(g[i].renderTo);
+            sd.pattern = g[i].pattern;
+            sd.colorOn = g[i].colorOn;
+            sd.colorOff = g[i].colorOff;
+            sd.draw();
+            sd.setValue(g[i].count);
+            //updateOdometer(parseFloat(json.odometer.count));
+        }else{
+            new RadialGauge(g[i]).draw();
+        }
         canvas.remove();
 
         var ctx = canvas.getContext('2d');
         var img = document.createElement("img");
         img.src = canvas.toDataURL();
-        img.id = array[i].renderTo;
+        img.id = g[i].renderTo;
+        img.code = g[i];
         //img.width = "40px";
         tile_list.appendChild(img);
 
@@ -1160,15 +1194,8 @@ function buildGaugeList(array,id,title)
             var code = document.createElement("textarea");
             code.rows = "20";
             code.id = "code" + this.id;
+            code.value = JSON.stringify(this.code, null, 2);
 
-            for (i in json.analog)
-            {
-                if("_" + json.analog[i].renderTo === this.id)
-                {
-                    code.value = JSON.stringify(json.analog[i], null, 2);
-                    break;
-                }
-            }
             lightboxBody.appendChild(code);
 
             window.location = "#openModal";
@@ -1185,13 +1212,21 @@ function buildGaugeList(array,id,title)
                         break;
                     }
                 }
+                for (i in json.digital)
+                {
+                    if("code_" + json.digital[i].renderTo === this.id)
+                    {
+                        json.digital[i] = JSON.parse(this.value);
+                        break;
+                    }
+                }
                 //renderView("front");
             };
         };
 
         //set options back
-        array[i].enabled = e;
-        array[i].renderTo = array[i].renderTo.substr(1);
+        g[i].enabled = e;
+        g[i].renderTo = g[i].renderTo.substr(1);
     }
 
     tile.appendChild(tile_list);
@@ -1258,8 +1293,8 @@ function ajaxSend(url)
 function getGaugeID(id)
 {
     for (var i = 0, l = document.gauges.length; i < l; i++) {
-        var gauge = document.gauges[i];
-        if (gauge.options.renderTo == id) {
+        var g = document.gauges[i];
+        if (g.options.renderTo == id) {
             return i;
         }
     }
@@ -1492,8 +1527,38 @@ function loadJSON(path, success, error)
     };
 };
 
+function snapshotExport()
+{
+    var d = new Date();
+    var data = encode(JSON.stringify(json,null,2));
+    var blob = new Blob([data], { type: 'application/octet-stream' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "dashboard " + d.getDate() + "-" + (d.getMonth() + 1) + "-" + d.getFullYear() + " " + (d.getHours() % 12 || 12) + "-" + d.getMinutes() + " " + (d.getHours() >= 12 ? 'pm' : 'am') + ".json";
+    document.body.appendChild(a); // Required for FF
+    a.click();
+    setTimeout(function () {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }, 0);
+};
+
+function snapshotImport()
+{
+    document.getElementsByClassName("snapshotUpload")[0].click();
+};
+
+var encode = function( s ) {
+    var out = [];
+    for ( var i = 0; i < s.length; i++ ) {
+        out[i] = s.charCodeAt(i);
+    }
+    return new Uint8Array( out );
+};
+
 function saveView()
-{   
+{
     console.log("saving view");
 
     var xhr = new XMLHttpRequest();

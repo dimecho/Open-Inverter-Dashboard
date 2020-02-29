@@ -13,6 +13,7 @@
 
 ESP8266WebServer server(80);
 ESP8266HTTPUpdateServer updater;
+File fsUpload;
 
 int WIFI_PHY_MODE = 1; //WIFI_PHY_MODE_11B = 1, WIFI_PHY_MODE_11G = 2, WIFI_PHY_MODE_11N = 3
 float WIFI_PHY_POWER = 20.5; //Max = 20.5dbm
@@ -109,7 +110,7 @@ void setup()
   //File system
   //===========
   SPIFFS.begin();
-      
+
   //======================
   //NVRAM type of Settings
   //======================
@@ -135,8 +136,8 @@ void setup()
     s.toCharArray(ACCESS_POINT_SSID, s.length() + 1);
     String p = NVRAM_Read(4);
     String d = p.substring(p.length() - 2, p.length()); //last two chars
-    if(d == "==") { //check if encrypted
-        p = decrypt(string2char(p), aes_iv); //decrypt
+    if (d == "==") { //check if encrypted
+      p = decrypt(string2char(p), aes_iv); //decrypt
     }
     p.toCharArray(ACCESS_POINT_PASSWORD, p.length() + 1);
     DATA_LOG = NVRAM_Read(5).toInt();
@@ -214,14 +215,16 @@ void setup()
 
     server.send(200, text_plain, "OK");
   });
-  server.on("/can/sleep", []() {
-    CAN0.sleep();
+  /*
+    server.on("/can/sleep", []() {
+    CAN0.sleep();  //MCP2515 will NOT wake up on incoming messages
     server.send(200, text_plain, "OK");
-  });
-  server.on("/can/wake", []() {
-    CAN0.wake();
+    });
+    server.on("/can/wake", []() {
+    CAN0.wakeup(); //MCP2515 will wake up on incoming messages
     server.send(200, text_plain, "OK");
-  });
+    });
+  */
   server.on("/format", HTTP_GET, []() {
     String result = SPIFFS.format() ? "OK" : "Error";
     FSInfo fs_info;
@@ -251,6 +254,9 @@ void setup()
 
     SPIFFS.remove("/data.txt"); //Clean old logs
   });
+  server.on("/snapshot.php", HTTP_POST, []() {
+    server.send(200);
+  }, SnapshotUpload );
   server.on("/serial.php", HTTP_GET, []() {
     if (server.hasArg("init"))
     {
@@ -335,7 +341,7 @@ void setup()
   {
     Serial.println("MCP2515 Initialized Successfully!");
     //CAN0.setMode(MODE_LOOPBACK);
-    CAN0.setMode(MODE_NORMAL);
+    //CAN0.setMode(MODE_NORMAL);
   } else {
     Serial.println("Error Initializing MCP2515...");
   }
@@ -421,7 +427,7 @@ void NVRAMUpload(uint8_t from, uint8_t to, uint8_t skip)
       v = encrypt(string2char(v), aes_iv);
       //Serial.println(server.arg(i) + ">" + v);
     }
-    
+
     if (skip == -1 || i < skip) {
       out += server.argName(i) + ": ";
       NVRAM_Write(i, v);
@@ -519,6 +525,35 @@ String getContentType(String filename)
   else if (filename.endsWith(".woff")) return "font/woff";
   else if (filename.endsWith(".woff2")) return "font/woff2";
   return text_plain;
+}
+
+void SnapshotUpload()
+{
+  HTTPUpload& upload = server.upload();
+
+  if (upload.status == UPLOAD_FILE_START)
+  {
+    //Serial.println(upload.filename);
+    fsUpload = SPIFFS.open("/views/" + upload.filename, "w");
+  }
+  else if (upload.status == UPLOAD_FILE_WRITE)
+  {
+    if (fsUpload)
+      fsUpload.write(upload.buf, upload.currentSize);
+  }
+  else if (upload.status == UPLOAD_FILE_END)
+  {
+    if (fsUpload) {
+      fsUpload.close();
+      //Serial.println(upload.totalSize);
+
+      server.sendHeader("Location", "/index.html");
+      server.send(303);
+
+    } else {
+      server.send(500, text_plain, "500: Couldn't Upload File");
+    }
+  }
 }
 
 //===================

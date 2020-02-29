@@ -2,10 +2,10 @@
     "index": [
         {
             "file": "open.json",
-            "name": "Open Inverter"
+            "name": "Open Inverter Universal"
         },{
-            "file": "bms.json",
-            "name": "BMS CAN-Bus Interface"
+            "file": "teensy.json",
+            "name": "Teensy BMS CANbus over Serial"
         }
     ]
 }
