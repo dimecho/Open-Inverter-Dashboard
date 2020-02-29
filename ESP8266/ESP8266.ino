@@ -7,6 +7,7 @@
 #endif
 
 #include <EEPROM.h>
+#include <AESLib.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
 
@@ -36,7 +37,7 @@ const char text_json[] = "application/json";
    http://forum.arduino.cc/index.php?topic=152145.0
    https://github.com/Metaln00b/NodeMCU-BlackBox
 */
-#include <mcp_can.h>
+#include <mcp_can.h> //CAN-BUS Shield library by Seeed Studio
 #include <SPI.h>
 /*
   #define MCP_8MHz_250kBPS_CFG1 (0x40)
@@ -56,6 +57,48 @@ const char text_json[] = "application/json";
 MCP_CAN CAN0(4);      // Set CS to pin GPIO4 (D2)
 //=============================
 
+AESLib aesLib;
+
+char cleartext[256];
+char ciphertext[512];
+
+// AES Encryption Key
+byte aes_key[] = { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C };
+
+// Initialization Vector
+byte aes_iv[N_BLOCK] = { 0x04, 0x0B, 0x04, 0x05, 0x05, 0x09, 0x04, 0x07, 0x05, 0x05, 0x05, 0x02, 0x05, 0x05, 0x01, 0x00 };
+
+// Generate IV (once)
+void aes_init() {
+  aesLib.gen_iv(aes_iv);
+}
+
+String encrypt(char * msg, byte iv[]) {
+  int msgLen = strlen(msg);
+  char encrypted[2 * msgLen];
+  aesLib.encrypt64(msg, msgLen, encrypted, aes_key, sizeof(aes_key), iv);
+  return String(encrypted);
+}
+
+String decrypt(char * msg, byte iv[]) {
+  int msgLen = strlen(msg);
+  char decrypted[msgLen]; // half may be enough
+  aesLib.decrypt64(msg, msgLen, decrypted, aes_key, sizeof(aes_key), iv);
+  return String(decrypted);
+}
+
+void print_key_iv() {
+  Serial.println("AES IV: ");
+  for (unsigned int i = 0; i < sizeof(aes_iv); i++) {
+    Serial.print(aes_iv[i], DEC);
+    if ((i + 1) < sizeof(aes_iv)) {
+      Serial.print(",");
+    }
+  }
+
+  Serial.println("");
+}
+
 void setup()
 {
   Serial.begin(115200, SERIAL_8N1);
@@ -66,7 +109,7 @@ void setup()
   //File system
   //===========
   SPIFFS.begin();
-
+      
   //======================
   //NVRAM type of Settings
   //======================
@@ -79,10 +122,11 @@ void setup()
     NVRAM_Write(1, String(ACCESS_POINT_HIDE));
     NVRAM_Write(2, String(ACCESS_POINT_CHANNEL));
     NVRAM_Write(3, ACCESS_POINT_SSID);
-    NVRAM_Write(4, ACCESS_POINT_PASSWORD);
+    NVRAM_Write(4, encrypt(ACCESS_POINT_PASSWORD, aes_iv));
     NVRAM_Write(5, String(DATA_LOG));
     NVRAM_Write(6, String(LOG_INTERVAL));
     SPIFFS.format();
+    //aes_init(); //Generate random IV
   } else {
     ACCESS_POINT_MODE = NVRAM_Read(0).toInt();
     ACCESS_POINT_HIDE = NVRAM_Read(1).toInt();
@@ -90,6 +134,10 @@ void setup()
     String s = NVRAM_Read(3);
     s.toCharArray(ACCESS_POINT_SSID, s.length() + 1);
     String p = NVRAM_Read(4);
+    String d = p.substring(p.length() - 2, p.length()); //last two chars
+    if(d == "==") { //check if encrypted
+        p = decrypt(string2char(p), aes_iv); //decrypt
+    }
     p.toCharArray(ACCESS_POINT_PASSWORD, p.length() + 1);
     DATA_LOG = NVRAM_Read(5).toInt();
     LOG_INTERVAL = NVRAM_Read(6).toInt();
@@ -189,15 +237,32 @@ void setup()
     NVRAM();
   });
   server.on("/nvram", HTTP_POST, []() {
-    NVRAMUpload();
+
+    if (server.argName(0) == "WiFiMode") {
+      //skip confirm password (5)
+      NVRAMUpload(0, 7, 5);
+    } else if (server.argName(0) == "WiFiDHCP") {
+      NVRAMUpload(7, 11, -1);
+    } else if (server.argName(0) == "WiFiNotify") {
+      NVRAMUpload(12, 15, -1);
+    } else {
+      NVRAM_Erase();
+    }
+
+    SPIFFS.remove("/data.txt"); //Clean old logs
   });
-  server.on("/data.php", HTTP_GET, []() {
+  server.on("/serial.php", HTTP_GET, []() {
     if (server.hasArg("init"))
     {
       Serial.end();
-      Serial.begin(server.arg("init").toInt(), SERIAL_8N1);
+      Serial.begin(server.arg("serial").toInt(), SERIAL_8N1);
 
-      server.send(200, text_plain, "OK");
+      if (CAN0.checkReceive() == CAN_MSGAVAIL) //if (CAN0.begin(server.arg("canbus").toInt()) == CAN_OK)
+      {
+        server.send(200, text_plain, "CAN");
+      } else {
+        server.send(200, text_plain, "Serial");
+      }
     }
     else if (server.hasArg("read"))
     {
@@ -207,15 +272,46 @@ void setup()
       }
       server.send(200, text_plain, out);
     }
-    else if (server.hasArg("command"))
+    else if (server.hasArg("get"))
     {
-      String out = readSerial(server.arg("command"));
-      SPIFFS.remove("/data.txt");
+      String sz = server.arg("get");
+      String out;
+
+      if (sz.indexOf(",") != -1 )
+      {
+        char buf[sz.length() + 1];
+        sz.toCharArray(buf, sizeof(buf));
+        char *p = buf;
+        char *str;
+        while ((str = strtok_r(p, ",", &p)) != NULL) //split
+        {
+          out += readSerial("get " + String(str));
+        }
+      } else {
+        out = readSerial("get " + sz);
+      }
       server.send(200, text_plain, out);
     }
+    else if (server.hasArg("command"))
+    {
+      server.send(200, text_plain, readSerial(server.arg("command")));
+    }
+    else if (server.hasArg("stream"))
+    {
+      String l = server.arg("loop");
+      String d = server.arg("delay");
+      readStream("get " + server.arg("stream"), l.toInt(), d.toInt());
+    }
   });
-  server.on("/views/save.php", HTTP_GET, []() {
-    server.send(200, text_plain, "OK");
+  server.on("/views/save.php", HTTP_POST, []() {
+
+    //Serial.print(server.arg("json"));
+
+    File file = SPIFFS.open("/views/" + server.arg("view"), "w");
+    file.print(server.arg("json"));
+    file.close();
+
+    server.send(200, text_plain, "");
   });
   server.on("/", []() {
     if (SPIFFS.exists("/index.html")) {
@@ -281,6 +377,13 @@ void loop()
   */
 }
 
+char* string2char(String command) {
+  if (command.length() != 0) {
+    char *p = const_cast<char*>(command.c_str());
+    return p;
+  }
+}
+
 //=============
 // NVRAM CONFIG
 //=============
@@ -303,25 +406,33 @@ void NVRAM()
   server.send(200, text_json, out);
 }
 
-void NVRAMUpload()
+void NVRAMUpload(uint8_t from, uint8_t to, uint8_t skip)
 {
-  NVRAM_Erase();
+  //NVRAM_Erase();
 
   String out = "<pre>";
 
-  for (uint8_t i = 0; i <= 4; i++) {
-    out += server.argName(i) + ": ";
-    NVRAM_Write(i, server.arg(i));
-    out += NVRAM_Read(i) + "\n";
+  for (uint8_t i = from; i <= to; i++) {
+
+    String v = server.arg(i);
+
+    //Catch and encrypt passwords
+    if (server.argName(i) == "WiFiPassword" || server.argName(i) == "EmailPassword") {
+      v = encrypt(string2char(v), aes_iv);
+      //Serial.println(server.arg(i) + ">" + v);
+    }
+    
+    if (skip == -1 || i < skip) {
+      out += server.argName(i) + ": ";
+      NVRAM_Write(i, v);
+      out += NVRAM_Read(i) + "\n";
+    } else if (i > skip) {
+      out += server.argName(i) + ": ";
+      NVRAM_Write(i - 1, v);
+      out += NVRAM_Read(i - 1) + "\n";
+    }
   }
 
-  //skip confirm password (5)
-
-  for (uint8_t i = 6; i <= 7; i++) {
-    out += server.argName(i) + ": ";
-    NVRAM_Write(i - 1, server.arg(i));
-    out += NVRAM_Read(i - 1) + "\n";
-  }
   out += "\n...Rebooting";
   out += "</pre>";
 
@@ -374,7 +485,10 @@ bool HTTPServer(String file)
 
       String contentType = getContentType(file);
 
-      server.sendHeader("Content-Encoding", "gzip");
+      if (contentType != text_json)
+      {
+        server.sendHeader("Content-Encoding", "gzip");
+      }
       server.streamFile(f, contentType);
 
       f.close();
@@ -413,7 +527,7 @@ String getContentType(String filename)
 String flushSerial()
 {
   String output;
-  uint8_t timeout = 8;
+  uint8_t timeout = 4;
 
   while (Serial.available() && timeout > 0) {
     output = Serial.readString(); //flush all previous output
@@ -425,32 +539,32 @@ String flushSerial()
 String readSerial(String cmd)
 {
   char b[255];
-  String output = flushSerial();
+  String output;
 
-  //Serial.println(cmd);
-  if (output.substring(0, 2) != "2D") //Empty Bootloader detection
-  {
-    Serial.print(cmd);
-    Serial.print("\n");
-    Serial.readStringUntil('\n'); //consume echo
-    //for (uint16_t i = 0; i <= cmd.length() + 1; i++)
-    //  Serial.read();
+  flushSerial();
+
+  Serial.print(cmd);
+  Serial.print("\n");
+  Serial.readStringUntil('\n'); //consume echo
+  //for (uint16_t i = 0; i <= cmd.length() + 1; i++)
+  //  Serial.read();
+
+  output = Serial.readString(); //Faster than binary read
+  /*
     size_t len = 0;
     do {
-      memset(b, 0, sizeof(b));
-      len = Serial.readBytes(b, sizeof(b) - 1);
-      output += b;
+    memset(b, 0, sizeof(b));
+    len = Serial.readBytes(b, sizeof(b) - 1);
+    output += b;
     } while (len > 0);
-  }
-  //Serial.println(output);
-
+  */
   return output;
 }
 
 String readStream(String cmd, int _loop, int _delay)
 {
   char b[255];
-  String output = flushSerial();
+  String output;
 
   //server.sendHeader("Expires", "-1");
   server.sendHeader("Cache-Control", "no-cache");
@@ -458,38 +572,35 @@ String readStream(String cmd, int _loop, int _delay)
   server.send(200, text_plain, "");
   //server.send(200, text_html, "");
 
-  //Serial.println(cmd);
-  if (output.substring(0, 2) != "2D") //Empty Bootloader detection
-  {
-    server.sendContent(output);
-  } else {
-    Serial.print(cmd);
-    Serial.print("\n");
-    Serial.readStringUntil('\n'); //consume echo
+  flushSerial();
 
-    //WiFiClient client = server.client();
-    for (uint16_t i = 0; i < _loop; i++) {
-      String output = "";
-      size_t len = 0;
-      if (i != 0)
-      {
-        Serial.print("!");
-        Serial.readBytes(b, 1); //consume "!"
-      }
-      do {
-        memset(b, 0, sizeof(b));
-        len = Serial.readBytes(b, sizeof(b) - 1);
-        //client.write((const char*)b, len);
-        output += b;
-      } while (len > 0);
+  Serial.print(cmd);
+  Serial.print("\n");
+  Serial.readStringUntil('\n'); //consume echo
 
-      server.sendContent(output);
-      //client.print(output);
-      //client.flush();
-
-      //Serial.println(output);
-      delay(_delay);
+  //WiFiClient client = server.client();
+  for (uint16_t i = 0; i < _loop; i++) {
+    String output = "";
+    size_t len = 0;
+    if (i != 0)
+    {
+      Serial.print("!");
+      Serial.readBytes(b, 1); //consume "!"
     }
+    do {
+      memset(b, 0, sizeof(b));
+      len = Serial.readBytes(b, sizeof(b) - 1);
+      //client.write((const char*)b, len);
+      output += b;
+    } while (len > 0);
+
+    server.sendContent(output);
+    //client.print(output);
+    //client.flush();
+
+    //Serial.println(output);
+    delay(_delay);
   }
+
   //client.stop(); // Stop is needed because we sent no content length
 }

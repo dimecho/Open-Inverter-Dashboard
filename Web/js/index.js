@@ -4,15 +4,16 @@ var json = "";
 var blinkAlert = [];
 
 var odometer;
-var odometerTimer;
 
-var dashboardVisible = [];
 var dashboardHidden = [];
+var dashboardAnalog = [];
+var dashboardDigital = [];
 var adjustHeight;
 
 var stream = "";
 var streamHttpRequest;
-var streamTimer;
+var streamAnalogTimer;
+var streamDigitalTimer;
 
 var formTimer;
 
@@ -24,18 +25,33 @@ document.addEventListener("DOMContentLoaded", function(event)
     iconic = IconicJS();
     _alert = document.getElementById("alert");
 
-    var safety = getCookie("safety");
+    var safety = getCookie("safetyD");
     if (safety === undefined) {
        
         var lightboxBody = document.getElementById("lightboxBody");
+        var lightboxTitle = document.getElementById("lightboxTitle");
+            
+        var svg = document.createElement("img");
+        svg.classList.add("iconic");
+        svg.classList.add("svg-orange");
+        svg.style.width = "64px";
+        svg.style.height = "64px";
+        svg.src = "svg/alert.svg";
+        lightboxTitle.appendChild(svg);
+        iconic.inject(svg);
 
-        var span = document.createElement("center");
+        var warning = document.createElement("h1");
+        warning.classList.add("formtext");
+        warning.append("WARNING");
+        lightboxTitle.appendChild(warning);
+
+        var span = document.createElement("span");
         var btn = document.createElement("input");
         btn.type = "button";
         btn.value = "OK";
 
-        var warning = document.createElement("h1");
-        addText(warning,"Taking your eyes off the road too long or too often while using this system <br>could cause a crash resulting in injury or death to you or others.<br><br>Focus your attention on driving.<br><br><br>");
+        warning = document.createElement("h1");
+        addText(warning,"Taking your eyes off the road too long or too often while using this system <br>could cause a crash resulting in injury or death to you or others.<br><br>Focus your attention on driving.<br><br>");
         
         span.appendChild(warning);
         span.appendChild(btn);
@@ -43,7 +59,7 @@ document.addEventListener("DOMContentLoaded", function(event)
         lightboxBody.appendChild(span);
 
         btn.onclick = function (e) {
-            setCookie("safety", 1, 1);
+            setCookie("safetyD", 1, 1);
             window.location = "#close";
         };
 
@@ -51,7 +67,7 @@ document.addEventListener("DOMContentLoaded", function(event)
     }
 
     if (view === undefined) {
-        view = "ttl.json";
+        view = "open.json";
     }
 
     loadJSON("views/" + view, function(data)
@@ -66,10 +82,14 @@ document.addEventListener("DOMContentLoaded", function(event)
         animateView();
 
         setTimeout(function() {
-            streamInit();
+            streamInit(json.serial,json.canbus);
         }, 4000);
 
-    }, function(xhr) { console.error(xhr); });
+    }, function(xhr) {
+        console.error(xhr);
+        setCookie("view", "open.json", 360);
+        location.reload();
+    });
 });
 
 function addText(node,text)
@@ -119,17 +139,15 @@ function sizeView(view)
 {
     if(view === "front")
     {
-        console.log(dashboardVisible.length);
-
-        var h = getHeight() / (dashboardVisible.length*1.5); //TODO: calculate dynamically
-        
-        //dashboardHeight = (getHeight() - adjustHeight);
-        //console.log("dashboardHeight: " + dashboardHeight);
-
-        if(json.alerts.odometer.enabled === true)
-            h *=2;
+        var w = Math.round(getWidth() / dashboardAnalog.length);
+        var h = 100; //Math.round(getHeight() - (w*2)); //TODO: calculate dynamically
 
         adjustHeight = h;
+        
+        //alert(getHeight() + " " + w + ":" + h);
+
+        if(dashboardDigital.length > 0)
+            h *=2;
 
         for (var i = 0, l = document.gauges.length; i < l; i++) {
 
@@ -140,8 +158,8 @@ function sizeView(view)
 
                 //console.log("... adjust size " + gauge.options.renderTo);
 
-                gauge.options.width = Math.round(getWidth() / dashboardVisible.length); // * gauge.options.width);
-                gauge.options.height = Math.round(getHeight() - h) ; //dashboardVisible.length);// * gauge.options.height);
+                gauge.options.width = w;
+                gauge.options.height = getHeight() - h;
                 gauge.update();
 
                 var td = document.getElementById(gauge.options.renderTo);
@@ -153,7 +171,7 @@ function sizeView(view)
 
         /*
         var maxH = [];
-        for (var i = 0; i < json.dashboard.length; i++)
+        for (var i = 0; i < json.analog.length; i++)
         {
             var t = document.getElementById("canvasIndex" + i);
             console.log("canvasIndex" + i + " height=" + t.height);
@@ -166,14 +184,16 @@ function sizeView(view)
 
         var divM = document.getElementById("backMenu");
         var divA = document.getElementById("backAvailable");
-        var divB = document.getElementById("backSelected");
+        var divB = document.getElementById("backAnalogSelected");
+        var divC = document.getElementById("backDigitalSelected");
 
-        divA.parentElement.height = Math.round(getHeight() / 3);
-        divB.parentElement.height = getHeight() - divM.parentElement.clientHeight - divA.parentElement.clientHeight - adjustHeight;
+        divA.parentElement.height = Math.round(getHeight() / 5);
+        divC.parentElement.height = Math.round(getHeight() / 6);
+        divB.parentElement.height = getHeight() - divM.parentElement.height - divA.parentElement.height - divC.parentElement.height - adjustHeight*2;
 
-        for (var i = 0; i < json.dashboard.length; i++)
+        for (var i = 0; i < json.analog.length; i++)
         {
-            var img = document.getElementById("_" + json.dashboard[i].renderTo);
+            var img = document.getElementById("_" + json.analog[i].renderTo);
             img.width = img.parentElement.parentElement.parentElement.parentElement.height;
         }
     }
@@ -183,7 +203,7 @@ function buildOdometer(view)
 {
     //var odometer = CANRead("distance");
 
-    clearTimeout(odometerTimer);
+    clearTimeout(streamDigitalTimer);
     
     var tr = document.getElementById(view + "Odometer");
     tr.innerHTML = "";
@@ -193,7 +213,7 @@ function buildOdometer(view)
     if(json.alerts.odometer.enabled === true)
     {
         var td = document.createElement("td");
-        td.colSpan = json.dashboard.length;
+        td.colSpan = json.analog.length;
 
         var canvasOdometer = document.createElement("canvas");
         canvasOdometer.id = "odometer";
@@ -342,6 +362,13 @@ function buildMenu(view)
 
                     center.appendChild(select);
                     lightboxBody.appendChild(center);
+
+                    select.onchange = function () {
+                        //console.log(this.value);
+                        window.location = "#close";
+                        setCookie("view", this.value, 360);
+                        location.reload();
+                    };
                 }
                 else if(this.id =="menu_rfid")
                 {
@@ -365,8 +392,6 @@ function buildMenu(view)
                     var channel_text = document.createElement("span");
 
                     var ssid = document.createElement("input");
-                    //var ip = document.createElement("input");
-
                     var password = document.createElement("input");
                     var passwordC = document.createElement("input");
 
@@ -408,10 +433,6 @@ function buildMenu(view)
                     ssid.type = "text";
                     ssid.name = "WiFiSSID";
                     ssid.placeholder = "SSID";
-
-                    //ip.type = "text";
-                    //ip.name = "WiFiIP";
-                    //ip.placeholder = "Access Point IPv4 (/24)";
 
                     password.type = "password";
                     password.name = "WiFiPassword";
@@ -472,7 +493,6 @@ function buildMenu(view)
                     nvram.appendChild(channel);
                     nvram.appendChild(channel_text);
                     nvram.appendChild(ssid);
-                    //nvram.appendChild(ip);
                     nvram.appendChild(password);
                     nvram.appendChild(passwordC);
                     nvram.appendChild(log);
@@ -482,7 +502,7 @@ function buildMenu(view)
 
                     lightboxBody.appendChild(nvram);
 
-                    const typeHandler = function(e) {
+                    const typeWiFiHandler = function(e) {
                         //console.log(e.target.value);
 
                         clearTimeout(formTimer);
@@ -490,22 +510,110 @@ function buildMenu(view)
                         {
                             if(ssid.value.length < 1) {
                                 alert("SSID cannot be empty");
-                            //}else if(ip.value.length < 1 || ip.value.includes(".", 3) == false) {
-                            //    alert("IPv4 address invalid");
                             }else if(password.value.length < 8) {
                                 alert("WPA2 password must be greater than 8");
                             }else if(password.value != passwordC.value) {
                                 alert("Confirm password must match");
                             }else{
                                 nvram.submit();
-                                //ajaxSend("nvram?reset=1&pid=" + pid);
                             }
                         }, 2000);
                     }
 
-                    //ssid.addEventListener("input", typeHandler);
-                    //ip.addEventListener("input", typeHandler);
-                    passwordC.addEventListener("input", typeHandler);
+                    passwordC.addEventListener("input", typeWiFiHandler);
+                }
+                else if(this.id =="menu_network")
+                {
+                    var dhcp = document.createElement("input");
+                    var dhcp_checkbox = document.createElement("input");
+                    var dhcp_text = document.createElement("span");
+
+                    var ip = document.createElement("input");
+                    var subnet = document.createElement("input");
+                    var gateway = document.createElement("input");
+                    var dns = document.createElement("input");
+
+                    dhcp.type = "hidden";
+                    dhcp.name = "WiFiDHCP";
+                    dhcp.value = 0;
+                    dhcp_checkbox.type = "checkbox";
+                    dhcp_checkbox.name = "WiFiDHCPCheckbox";
+                    dhcp_text.append("Enable DHCP");
+                    dhcp_text.classList.add("formtext");
+
+                    ip.type = "text";
+                    ip.name = "WiFiIP";
+                    ip.placeholder = "IPv4 Address (192.168.0.2)";
+
+                    subnet.type = "text";
+                    subnet.name = "WiFiSubnet";
+                    subnet.placeholder = "Subnet Mask (255.255.255.0)";
+
+                    gateway.type = "text";
+                    gateway.name = "WiFiGateway";
+                    gateway.placeholder = "Gateway Address (192.168.0.1)";
+
+                    dns.type = "text";
+                    dns.name = "WiFiDNS";
+                    dns.placeholder = "DNS Address (8.8.8.8)";
+
+                    var nvram = document.createElement("form");
+                    nvram.method="POST";
+                    nvram.action="nvram";
+
+                    nvram.appendChild(dhcp);
+                    nvram.appendChild(dhcp_checkbox);
+                    nvram.appendChild(dhcp_text);
+                    nvram.appendChild(document.createElement("br"));
+                    nvram.appendChild(document.createElement("br"));
+                    nvram.appendChild(ip);
+                    nvram.appendChild(subnet);
+                    nvram.appendChild(gateway);
+                    nvram.appendChild(dns);
+
+                    lightboxBody.appendChild(nvram);
+
+                    dhcp_checkbox.onchange = function () {
+                        if(this.checked == true){
+                            ip.disabled = true;
+                            subnet.disabled = true;
+                            gateway.disabled = true;
+                            dns.disabled = true;
+                            typeNetworkHandler();
+                        }else{
+                            ip.disabled = false;
+                            subnet.disabled = false;
+                            gateway.disabled = false;
+                            dns.disabled = false;
+                        }
+                    };
+
+                    const typeNetworkHandler = function(e) {
+                        //console.log(e.target.value);
+
+                        clearTimeout(formTimer);
+                        formTimer = setTimeout(function()
+                        {
+                            if(dhcp_checkbox.checked == false) {
+                                if(ip.value.length < 1 || ip.value.includes(".", 3) == false) {
+                                    alert("IPv4 address invalid");
+                                    return;
+                                }else if(subnet.value.length < 1 || subnet.value.includes(".", 3) == false) {
+                                    alert("Subnet mask invalid");
+                                    return;
+                                }else if(gateway.value.length < 1 || gateway.value.includes(".", 3) == false) {
+                                    alert("Gateway address invalid");
+                                    return;
+                                }
+                            }
+                            nvram.submit();
+                        }, 3200);
+                    }
+
+                    //ip.addEventListener("input", typeNetworkHandler);
+                    //subnet.addEventListener("input", typeNetworkHandler);
+                    //gateway.addEventListener("input", typeNetworkHandler);
+                    dns.addEventListener("input", typeNetworkHandler);
                 }
                 else if(this.id =="menu_email")
                 {
@@ -524,10 +632,10 @@ function buildMenu(view)
                     username.placeholder = "Email Username";
                     password.placeholder = "Email Password";
 
-                    email.value = json.alert.email;
-                    smtp.value = json.alert.smtp;
-                    username.value = json.alert.username;
-                    password.value = json.alert.password;
+                    email.value = json.notify.email;
+                    smtp.value = json.notify.smtp;
+                    username.value = json.notify.username;
+                    password.value = json.notify.password;
 
                     lightboxBody.appendChild(email);
                     lightboxBody.appendChild(smtp);
@@ -566,7 +674,7 @@ function buildAlerts(view)
     if(view === "front")
     {
         var td = buildAlertList(false, adjustHeight - 20);
-        td.colSpan = json.dashboard.length;
+        td.colSpan = json.analog.length;
 
         //fixes flip rotation for svg
         for (var i = 0, l = td.childNodes.length; i < l; i++)
@@ -574,7 +682,8 @@ function buildAlerts(view)
 
     }else if (view === "back") {
 
-        var td = buildAlertList(true, adjustHeight / 2);
+        var td = buildAlertList(true, adjustHeight /2);
+        td.style.height = adjustHeight*2 + "px";
     }
 
     alerts.appendChild(td);
@@ -590,7 +699,7 @@ function buildView(view)
 
     if(view === "front")
     {
-        for (var i = 0, l = json.dashboard.length; i < l; i++)
+        for (var i = 0, l = json.analog.length; i < l; i++)
         {
             var td = document.getElementById( "canvasIndex" + i);
 
@@ -600,8 +709,8 @@ function buildView(view)
                 td.id = "canvasIndex" + i;
                 tr.appendChild(td);
 
-                json.dashboard[i].width = Math.round(getWidth()/3);
-                json.dashboard[i].height = json.dashboard[i].width;
+                json.analog[i].width = Math.round(getWidth()/3);
+                json.analog[i].height = json.analog[i].width;
             }
         }
 
@@ -609,8 +718,9 @@ function buildView(view)
 
             _alert.style.display = "none";
 
-            //streamHttpRequest.abort();
-            clearTimeout(streamTimer);
+            if(streamHttpRequest != undefined)
+                streamHttpRequest.abort();
+            clearTimeout(streamAnalogTimer);
 
             buildView("back");
             renderView("back");
@@ -626,11 +736,13 @@ function buildView(view)
         var divM = document.createElement("div");
         var divA = document.createElement("div");
         var divB = document.createElement("div");
+        var divC = document.createElement("div");
         var table = document.createElement("table");
 
         divM.id = "backMenu";
         divA.id = "backAvailable";
-        divB.id = "backSelected";
+        divB.id = "backAnalogSelected";
+        divC.id = "backDigitalSelected";
 
         var span = document.createElement("span");
         span.append("Drag & Drop");
@@ -638,7 +750,6 @@ function buildView(view)
 
         var tr = document.createElement("tr");
         var td = document.createElement("td");
-
         td.setAttribute("valign", "top");
         td.style.height = adjustHeight/2 + "px";
         td.appendChild(divM);
@@ -647,7 +758,6 @@ function buildView(view)
 
         tr = document.createElement("tr");
         td = document.createElement("td");
-
         td.setAttribute("valign", "top");
         td.appendChild(divA);
         tr.appendChild(td);
@@ -655,10 +765,18 @@ function buildView(view)
 
         tr = document.createElement("tr");
         td = document.createElement("td");
-
         td.setAttribute("valign", "top");
         td.appendChild(divB);
         tr.appendChild(td);
+        table.appendChild(tr);
+
+        tr = document.createElement("tr");
+        td = document.createElement("td");
+        //td.setAttribute("valign", "top");
+        //divC.height = adjustHeight *2 + "px";
+        td.appendChild(divC);
+        tr.appendChild(td);
+        table.appendChild(tr);
 
         side[0].onclick = function () {
             //console.log(this);
@@ -679,11 +797,11 @@ function buildView(view)
     }
 
     table.appendChild(tr);
-
+    /*
     var tr = document.createElement("tr");
     tr.id = view + "Odometer";
     table.appendChild(tr);
-
+	*/
     var tr = document.createElement("tr");
     tr.id = view + "Alerts";
     table.appendChild(tr);
@@ -698,21 +816,21 @@ function renderView(view)
     if(view === "front")
     {
         stream = "din_ocur";
-        dashboardVisible = [];
+        dashboardAnalog = [];
         dashboardHidden = [];
 
         var front = document.getElementsByClassName("front");
 
-        for (var i = 0, l = json.dashboard.length; i < l; i++)
+        for (var i = 0, l = json.analog.length; i < l; i++)
         {
-            var render = document.getElementById(json.dashboard[i].renderTo);
-            var td = document.getElementById("canvasIndex" + json.dashboard[i].index);
+            var render = document.getElementById(json.analog[i].renderTo);
+            var td = document.getElementById("canvasIndex" + json.analog[i].index);
 
-            if(json.dashboard[i].enabled)
+            if(json.analog[i].enabled)
             {
-                //console.log(json.dashboard[i].renderTo);
+                //console.log(json.analog[i].renderTo);
 
-                switch (json.dashboard[i].renderTo) {
+                switch (json.analog[i].renderTo) {
                     case "udc":
                     stream += ",udc,udcmax";
                     break;
@@ -727,9 +845,9 @@ function renderView(view)
                 if (render instanceof HTMLCanvasElement)
                 {
                     //if element exists we want to verify canvasindex is correct
-                    //console.log(render.parentElement.id + " > " + json.dashboard[i].index);
+                    //console.log(render.parentElement.id + " > " + json.analog[i].index);
 
-                    if(render.parentElement.id !== "canvasIndex" + json.dashboard[i].index)
+                    if(render.parentElement.id !== "canvasIndex" + json.analog[i].index)
                     {
                         console.log("index incorrect ...moving canvas");
 
@@ -739,32 +857,30 @@ function renderView(view)
                     }
 
                 }else{
-                    //console.log(JSON.stringify(json.dashboard[i],null, 2));
+                    //console.log(JSON.stringify(json.analog[i],null, 2));
 
                     var canvas = document.createElement("canvas");
-                    canvas.id = json.dashboard[i].renderTo;
+                    canvas.id = json.analog[i].renderTo;
                     td.appendChild(canvas);
 
-                    new RadialGauge(json.dashboard[i]).draw();
+                    new RadialGauge(json.analog[i]).draw();
                 }
 
-                dashboardVisible.push(json.dashboard[i]);
+                dashboardAnalog.push(json.analog[i]);
 
             }else{
 
                 if (render instanceof HTMLCanvasElement) {
-                    //console.log("...hide canvas " + json.dashboard[i].renderTo);
+                    //console.log("...hide canvas " + json.analog[i].renderTo);
                     render.parentElement.width = 0;
                     render.remove();
                 }
 
-                dashboardHidden.push(json.dashboard[i]);
+                dashboardHidden.push(json.analog[i]);
             }
         }
 
-        sizeView(view);
-
-        buildOdometer(view);
+        //buildOdometer(view);
 
         /*
         for (i in json.sounds)
@@ -790,15 +906,17 @@ function renderView(view)
         buildMenu("back");
 
         var divA = document.getElementById("backAvailable");
-        var divB = document.getElementById("backSelected");
+        var divB = document.getElementById("backAnalogSelected");
+        var divC = document.getElementById("backDigitalSelected");
 
-        divA.appendChild(buildGaugeList(dashboardHidden,(getHeight()/2),"tile_Available"));
-        divB.appendChild(buildGaugeList(dashboardVisible,(getHeight()/2),"tile_Selected"));
+        divA.appendChild(buildGaugeList(dashboardHidden,"tile_Available"));
+        divB.appendChild(buildGaugeList(dashboardAnalog,"tile_AnalogSelected"));
+        divC.appendChild(buildGaugeList(dashboardDigital,"tile_DigitalSelected"));
 
         new Sortable(document.getElementById('tile_Available'), {
             group: {
                 name: 'shared',
-                //pull: 'clone' // To clone: set pull to 'clone'
+                //pull: 'clone'
             },
             animation: 150,
             sort: false,
@@ -815,10 +933,10 @@ function renderView(view)
                 //renderView("front");
             }
         });
-        new Sortable(document.getElementById('tile_Selected'), {
+        new Sortable(document.getElementById('tile_AnalogSelected'), {
             group: {
                 name: 'shared',
-                //pull: 'clone' // To clone: set pull to 'clone'
+                //pull: 'clone'
             },
             animation: 150,
             sort: true,
@@ -841,9 +959,23 @@ function renderView(view)
                 //renderView("front");
             }
         });
+        new Sortable(document.getElementById('tile_DigitalSelected'), {
+            group: {
+                name: 'shared',
+                //pull: 'clone'
+            },
+            animation: 150,
+            sort: true,
+            onAdd: function (event) {
+                //event.from;
+                event.item.width = divC.parentElement.height;
 
-        sizeView(view);
+                sortView(this, event, true);
+            }
+        });
     }
+
+    sizeView(view);
     
     buildAlerts(view);
 };
@@ -854,14 +986,14 @@ function sortView(list, event, enabled)
 
     for (var e = 0; e < el.children.length; e++)
     {
-        for (i in json.dashboard)
+        for (i in json.analog)
         {
-            if ("_" + json.dashboard[i].renderTo === el.children[e].id)
+            if ("_" + json.analog[i].renderTo === el.children[e].id)
             {
                 //console.log(el.children[e].id + ":" + e);
                 
-                json.dashboard[i].index = e;
-                json.dashboard[i].enabled = enabled;
+                json.analog[i].index = e;
+                json.analog[i].enabled = enabled;
                 break;
             }
         }
@@ -910,7 +1042,7 @@ function buildAlertList(showAll,size)
             svg.style.height = size + "px";
             svg.src = "svg/" + key + ".svg";
             //svg.setAttribute("data-src", "svg/" + key + ".svg");
-            span.style.position = "relative"; 
+            span.style.position = "relative";
             span.style.zIndex = "1";
             span.id = "alert_" + key;
             span.appendChild(svg);
@@ -927,7 +1059,7 @@ function buildAlertList(showAll,size)
                     json.alerts[this.id.substr(6)].enabled = true;
 
                     this.children[1].src = "svg/enabled.svg";
-
+                    /*
                     var lightboxBody = document.getElementById("lightboxBody");
                     var lightboxTitle = document.getElementById("lightboxTitle");
                    
@@ -942,7 +1074,7 @@ function buildAlertList(showAll,size)
                         lightboxBody.appendChild(textarea);
                         window.location = "#openModal";
                     }
-
+                    */
                 }else{
                     json.alerts[this.id.substr(6)].enabled = false;
                     this.children[1].src = "svg/disabled.svg";
@@ -976,7 +1108,7 @@ function buildAlertList(showAll,size)
     return td;
 };
 
-function buildGaugeList(array,size,id,title)
+function buildGaugeList(array,id,title)
 {
     var tile = document.createElement("div");
     tile.classList.add("tile");
@@ -1014,7 +1146,7 @@ function buildGaugeList(array,size,id,title)
         var img = document.createElement("img");
         img.src = canvas.toDataURL();
         img.id = array[i].renderTo;
-        img.width = size;
+        //img.width = "40px";
         tile_list.appendChild(img);
 
         img.onclick = function (e) {
@@ -1029,11 +1161,11 @@ function buildGaugeList(array,size,id,title)
             code.rows = "20";
             code.id = "code" + this.id;
 
-            for (i in json.dashboard)
+            for (i in json.analog)
             {
-                if("_" + json.dashboard[i].renderTo === this.id)
+                if("_" + json.analog[i].renderTo === this.id)
                 {
-                    code.value = JSON.stringify(json.dashboard[i], null, 2);
+                    code.value = JSON.stringify(json.analog[i], null, 2);
                     break;
                 }
             }
@@ -1045,11 +1177,11 @@ function buildGaugeList(array,size,id,title)
 
                 //console.log(this.value);
 
-                for (i in json.dashboard)
+                for (i in json.analog)
                 {
-                    if("code_" + json.dashboard[i].renderTo === this.id)
+                    if("code_" + json.analog[i].renderTo === this.id)
                     {
-                        json.dashboard[i] = JSON.parse(this.value);
+                        json.analog[i] = JSON.parse(this.value);
                         break;
                     }
                 }
@@ -1067,7 +1199,7 @@ function buildGaugeList(array,size,id,title)
     return tile;
 };
 
-function streamInit()
+function streamInit(serial,canbus)
 {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
@@ -1080,7 +1212,7 @@ function streamInit()
                 console.log(xhr.responseText);
                 error = xhr.responseText;
 
-                if(error.indexOf("Unknown command sequence") != -1 || error.indexOf("CAN") != -1) {
+                if(error.indexOf("Serial") != -1 || error.indexOf("CAN") != -1) {
                     streamView();
                     return;
                 }
@@ -1094,13 +1226,13 @@ function streamInit()
     }
 
     xhr.timeout = 6000;
-    xhr.open("GET", "data.php?init=19200",true);
+    xhr.open("GET", "serial.php?init=1&serial=" + serial + "&canbus=" + canbus, true);
     xhr.send();
 };
 
 function streamReset(pid)
 {
-    ajaxSend("data.php?reset=1&pid=" + pid);
+    ajaxSend("serial.php?reset=1&pid=" + pid);
 };
 
 function ajaxSend(url)
@@ -1173,9 +1305,9 @@ function streamView()
 {
     //TODO: Detect idle mode and slow down stream
 
-    clearTimeout(streamTimer);
+    clearTimeout(streamAnalogTimer);
 
-    console.log("data.php?stream=" + stream);
+    console.log("serial.php?stream=" + stream);
 
     streamHttpRequest = new XMLHttpRequest();
     streamHttpRequest.items = stream.split(",");
@@ -1292,9 +1424,9 @@ function streamView()
 
                 //console.log(streamHttpRequest.responseText);
                 
-                streamTimer = setTimeout(function() {
+                streamAnalogTimer = setTimeout(function() {
                     streamView();
-                }, this.delay);
+                }, streamHttpRequest.delay);
                 
             } else {
 
@@ -1322,16 +1454,16 @@ function streamView()
             _alert.style.display = "block";
 
         }else{
-            streamTimer = setTimeout(function() {
+            streamAnalogTimer = setTimeout(function() {
                 streamView();
-            }, this.delay);
+            }, streamHttpRequest.delay);
 
             this.timeoutCount++;
         }
     };
 
     streamHttpRequest.timeout = 10000;
-    streamHttpRequest.open('GET', "data.php?stream=" + stream + "&loop=800&delay=" + streamHttpRequest.delay, true);
+    streamHttpRequest.open('GET', "serial.php?stream=" + stream + "&loop=4&delay=" + streamHttpRequest.delay, true);
     streamHttpRequest.send();
 };
 
@@ -1375,7 +1507,7 @@ function saveView()
             _alert.style.display = "block";
         }
     };
-    xhr.send('view=' + view + '&json=' + JSON.stringify(json));
+    xhr.send('view=' + view + '&json=' + encodeURI(JSON.stringify(json)));
 };
 
 function getWidth() {
@@ -1401,7 +1533,7 @@ function getHeight() {
 function updateOdometer(n) {
     n += 0.01
     odometer.setValue(n.toString());
-    odometerTimer = setTimeout(function(){
+    streamDigitalTimer = setTimeout(function(){
         updateOdometer(n);
     }, 200);
 };

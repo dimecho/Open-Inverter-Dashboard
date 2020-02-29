@@ -62,6 +62,9 @@ table {
 .svg-red * {
   fill:#b52808;
 }
+.svg-orange * {
+  fill:#ff5d00;
+}
 
 .sortable-ghost {
   opacity: .2;
@@ -80,11 +83,16 @@ table {
 
 #tile_Available {
   height: 120px;
-  border: 10px dashed #7b7d7d;
+  border: 2px dashed #7b7d7d;
 }
 
-#tile_Selected {
+#tile_AnalogSelected {
   height: 80px;
+}
+
+#tile_DigitalSelected {
+  height: 100px;
+  border: 1px solid #7b7d7d;
 }
 
 .tile_list img {

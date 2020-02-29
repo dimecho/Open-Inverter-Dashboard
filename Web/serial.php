@@ -2,7 +2,7 @@
 
     if(isset($_GET["init"]))
     {
-       echo "Unknown command sequence";
+       echo "(No Hardware)";
     }
     else if(isset($_GET["stream"]))
     {

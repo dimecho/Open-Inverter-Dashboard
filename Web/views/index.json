@@ -1,11 +1,11 @@
 {
     "index": [
         {
-            "file": "ttl.json",
-            "name": "UART/TTL Open Inverter"
+            "file": "open.json",
+            "name": "Open Inverter"
         },{
-            "file": "can.json",
-            "name": "CAN-Bus Interface"
+            "file": "bms.json",
+            "name": "BMS CAN-Bus Interface"
         }
     ]
 }

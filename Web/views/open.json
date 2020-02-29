@@ -1,13 +1,15 @@
 {
-    "dashboard": [
+    "serial": 115200,
+    "canbus": 250,
+    "analog": [
         {
             "index": 0,
             "renderTo": "udc",
             "enabled": true,
             "units": "%",
             "title": "Battery",
-            "width": 418,
-            "height": 418,
+            "width": 479,
+            "height": 479,
             "highlights": [
                 {
                     "from": 0,
@@ -65,8 +67,8 @@
             "renderTo": "rpm",
             "enabled": true,
             "units": "Km\/h",
-            "width": 418,
-            "height": 418,
+            "width": 479,
+            "height": 479,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -136,8 +138,8 @@
             "renderTo": "speed",
             "enabled": true,
             "units": "1\/min x 1000",
-            "width": 418,
-            "height": 418,
+            "width": 479,
+            "height": 479,
             "minValue": 0,
             "maxValue": 10,
             "majorTicks": [
@@ -208,8 +210,8 @@
             "enabled": true,
             "units": "\u00b0C",
             "title": "Temperature",
-            "width": 418,
-            "height": 418,
+            "width": 479,
+            "height": 479,
             "minValue": 0,
             "maxValue": 200,
             "majorTicks": [
@@ -282,27 +284,25 @@
             "colorValueBoxRectEnd": "#333"
         }
     ],
-    "odometer": {
-        "pattern": "######",
-        "count": "000000",
-        "unit": "KM",
-        "displayAngle": 6,
-        "digitHeight": 20,
-        "digitWidth": 14,
-        "digitDistance": 2.5,
-        "segmentWidth": 2,
-        "segmentDistance": 0.3,
-        "segmentCount": 7,
-        "cornerType": 3,
-        "colorOn": "#e95d0f",
-        "colorOff": "#4b1e05"
-    },
+    "digital": [
+        {
+            "index": 0,
+            "pattern": "######",
+            "count": "000000",
+            "unit": "KM",
+            "displayAngle": 6,
+            "digitHeight": 20,
+            "digitWidth": 14,
+            "digitDistance": 2.5,
+            "segmentWidth": 2,
+            "segmentDistance": 0.3,
+            "segmentCount": 7,
+            "cornerType": 3,
+            "colorOn": "#e95d0f",
+            "colorOff": "#4b1e05"
+        }
+    ],
     "alerts": {
-        "odometer": {
-            "show": false,
-            "enabled": false,
-            "color": "svg-grey"
-        },
         "battery": {
             "show": true,
             "enabled": true,
@@ -327,7 +327,7 @@
             "id": "deepengine2"
         }
     ],
-    "alert": {
+    "notify": {
         "email": "",
         "smtp": "",
         "username": "",

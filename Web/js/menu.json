@@ -11,6 +11,11 @@
             "href": "#openModal"
         },
         {
+            "icon": "network",
+            "title": "Network Settings",
+            "href": "#openModal"
+        },
+        {
             "icon": "email",
             "title": "Alarm Notifications",
             "href": "#openModal"
@@ -19,6 +24,16 @@
             "icon": "background",
             "title": "Background",
             "href": "#openModal"
+        },
+        {
+            "icon": "save",
+            "title": "Save View",
+            "href": "/snapshot"
+        },
+        {
+            "icon": "chip",
+            "title": "Update",
+            "href": "/update"
         }
     ]
 }
