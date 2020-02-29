@@ -1,12 +1,7 @@
 {
     "index": [
-        {
-            "file": "blackboard.png"
-        },{
-            "file": "hardleather.png"
-        },
-        {
-            "file": "whiteleather.png"
-        }
+        "blackboard.png",
+        "hardleather.png",
+        "whiteleather.png"
     ]
 }

@@ -276,6 +276,10 @@ void setup()
       if (Serial.available()) {
         out = Serial.readString();
       }
+
+      //DEBUG
+      out = "v:8,b:8,n:8,i:8,p:10,ah:10,kwh:10,t:30*";
+
       server.send(200, text_plain, out);
     }
     else if (server.hasArg("get"))
@@ -308,6 +312,12 @@ void setup()
       String d = server.arg("delay");
       readStream("get " + server.arg("stream"), l.toInt(), d.toInt());
     }
+  });
+  server.on("/opendbc/index.json", HTTP_POST, []() {
+    indexJSON("/opendbc");
+  });
+  server.on("/views/index.json", HTTP_POST, []() {
+    indexJSON("/views");
   });
   server.on("/views/save.php", HTTP_POST, []() {
 
@@ -475,6 +485,19 @@ String NVRAM_Read(uint32_t address)
   EEPROM.get(address * sizeof(arrayToStore), arrayToStore);
 
   return String(arrayToStore);
+}
+
+void indexJSON(String dir)
+{
+  String out = "{\n\t\"index\": [\n";
+
+  Dir files = SPIFFS.openDir(dir);
+  while (files.next()) {
+    out += "\t\t\"" + files.fileName() + "\",\n";
+  }
+  out += "\t]\n}";
+
+  server.send(200, text_json, out);
 }
 
 bool HTTPServer(String file)

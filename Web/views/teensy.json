@@ -1,11 +1,16 @@
 {
-    "serial": 115200,
-    "canbus": 250,
+    "vehicle": "",
+    "dashboard": "Teensy BMS CANbus over Serial",
+    "serial": 19200,
+    "canbus": 0,
+    "timeout": 2000,
+    "opendbc": "",
     "analog": [
         {
             "index": 0,
-            "serial": "v",
+            "serial": "v:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": true,
             "renderTo": "v",
@@ -54,8 +59,9 @@
         },
         {
             "index": 1,
-            "serial": "b",
+            "serial": "b:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": true,
             "renderTo": "b",
@@ -104,8 +110,9 @@
         },
         {
             "index": 2,
-            "serial": "n",
+            "serial": "n:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": true,
             "renderTo": "n",
@@ -154,8 +161,9 @@
         },
         {
             "index": 3,
-            "serial": "i",
+            "serial": "i:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": true,
             "renderTo": "i",
@@ -204,8 +212,9 @@
         },
         {
             "index": 4,
-            "serial": "p",
+            "serial": "p:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": true,
             "renderTo": "p",
@@ -254,8 +263,9 @@
         },
         {
             "index": 5,
-            "serial": "ah",
+            "serial": "ah:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": true,
             "renderTo": "ah",
@@ -304,8 +314,9 @@
         },
         {
             "index": 6,
-            "serial": "kwh",
+            "serial": "kwh:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": true,
             "renderTo": "kwh",
@@ -354,8 +365,9 @@
         },
         {
             "index": 7,
-            "serial": "t",
+            "serial": "t:",
             "canbus": "",
+            "stream": "read",
             "logic": "",
             "enabled": false,
             "renderTo": "t",
@@ -408,13 +420,15 @@
         "battery": {
             "serial": "udc,udcmax",
             "canbus": "",
+            "stream": "get",
             "logic": "",
             "enabled": false,
             "color": "svg-red"
         },
         "temp": {
-            "serial": "",
+            "serial": "tmpm,tmphs",
             "canbus": "",
+            "stream": "get",
             "logic": "",
             "enabled": false,
             "color": "svg-red"
@@ -422,6 +436,7 @@
         "emergency": {
             "serial": "",
             "canbus": "",
+            "stream": "",
             "logic": "",
             "enabled": false,
             "color": "svg-orange"

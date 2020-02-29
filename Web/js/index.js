@@ -8,7 +8,10 @@ var dashboardAnalog = [];
 var dashboardDigital = [];
 var adjustHeight;
 
-var stream = "";
+var serialStream = ""; //sends TX command then reads RX stream
+var serialGet = ""; //sends TX command then reads RX once
+var serialRead = ""; //reads incoming serial RX
+var CANBusRead = []; //reads incoming CAN messages
 var streamHttpRequest;
 var streamAnalogTimer;
 var streamDigitalTimer;
@@ -68,7 +71,7 @@ document.addEventListener("DOMContentLoaded", function(event)
         view = "open.json";
     }
 
-    loadJSON("views/" + view, function(data)
+    ajaxReceive("views/" + view, function(data)
     {
         //console.log(data);
         json = data;
@@ -204,7 +207,7 @@ function sizeView(view)
 
 function buildMenu()
 {
-    loadJSON("js/menu.json", function(data)
+    ajaxReceive("js/menu.json", function(data)
     {
         console.log(data);
 
@@ -246,7 +249,7 @@ function buildMenu()
                 if(this.id =="menu_background")
                 {
                     //TODO: loop through all background
-                    loadJSON("views/bg/index.json", function(data)
+                    ajaxReceive("views/bg/index.json", function(data)
                     {
                         var ul = document.createElement("ul");
                         ul.classList.add("slides");
@@ -278,7 +281,7 @@ function buildMenu()
                             input.id = "img-" + u;
                             input.checked = true;
 
-                            img.src = "views/bg/" + data.index[u].file;
+                            img.src = "views/bg/" + data.index[u];
                             div.appendChild(img);
                             li.appendChild(div);
 
@@ -316,23 +319,25 @@ function buildMenu()
                 }
                 else if(this.id =="menu_view")
                 {
-                    loadJSON("views/index.json", function(data) {
+                    ajaxReceive("views/index.json", function(data) {
 
                         var center = document.createElement("center");
                         var select = document.createElement("select");
 
                         for (var key in data.index) {
-                            var opt = document.createElement('option');
-                            opt.value = data.index[key].file;
-                            console.log(view);
-                            if(opt.value == view) {
+                            ajaxReceive("views/" + data.index[key] , function(d) {
+                                var opt = document.createElement('option');
+                                opt.value = data.index[key];
                                 console.log(view);
-                                opt.selected = true;
-                            }else{
-                                opt.selected = false;
-                            }
-                            opt.append(data.index[key].name);
-                            select.appendChild(opt);
+                                if(opt.value == view) {
+                                    console.log(view);
+                                    opt.selected = true;
+                                }else{
+                                    opt.selected = false;
+                                }
+                                opt.append(d.dashboard);
+                                select.appendChild(opt);
+                            });
                         }
                         center.appendChild(select);
                         lightboxBody.appendChild(center);
@@ -428,7 +433,7 @@ function buildMenu()
                     log_interval.name = "EnableLOGInterval";
                     log_interval.placeholder = "Log Interval (seconds)";
 
-                    loadJSON("nvram", function(data)
+                    ajaxReceive("nvram", function(data)
                     {
                         console.log(data);
 
@@ -790,7 +795,9 @@ function buildView(view)
                 animateView();
                 saveView();
                 setTimeout(function() {
-                    streamView();
+                    streamView(serialStream);
+                    streamView(serialGet);
+                    streamView(serialRead);
                 }, 4000);
             }, 1000);
             this.parentElement.style.cssText = "";
@@ -822,8 +829,46 @@ function renderViewBuild(g)
         if(g[i].enabled)
         {
             //console.log(gauge[i].renderTo);
+            if(g[i].stream == "read") {
+                serialRead += "," + g[i].serial;
+            }else if(g[i].stream == "stream") {
+                serialStream += "," + g[i].serial;
+            }else{
+                serialGet += "," + g[i].serial;
+            }
 
-            stream += "," + g[i].serial;
+            if(g[i].canbus != "") {
+                if(g[i].opendbc != "") {
+                    ajaxReceive("opendbc/" + g[i].opendbc, function(data)
+                    {
+                        var split = data.split("\n");
+                        for (i = 0; i < split.length; i++) {
+                            //console.log(split[i]);
+                            if(split[i].indexOf(g[i].canbus) != -1) {
+
+                                //Find CANId by looping back
+                                for (id = i; id >0; id--) {
+                                    if(split[id].indexOf("BO_") != -1) {
+                                        var v = split[id].split(" ");
+                                        console.log("CANId:" + v[1]);
+                                        break;
+                                    }
+                                }
+                                //Find CANBit
+                                var s = split[i].split(":");
+                                var v = s[1].split(" ");
+                                console.log("CANBit:" + v[1]);
+
+                                CANBusRead.push(g[i].canbus);
+                                return;
+                            }
+                        }
+                        CANBusRead.push(g[i].canbus);
+                    });
+                }else{
+                    CANBusRead.push(g[i].canbus);
+                }
+            }
 
             if (render instanceof HTMLCanvasElement)
             {
@@ -882,7 +927,9 @@ function renderView(view)
 
     if(view === "front")
     {
-        stream = "din_ocur";
+        serialStream = "stream=din_ocur";
+        serialGet = "get=din_ocur";
+        serialRead = "read=1";
 
         dashboardHidden = [];
         dashboardAnalog = [];
@@ -1336,13 +1383,16 @@ function setBlinkAlert(i, id)
     }, 1000);
 };
 
-function streamView()
+function streamView(stream)
 {
     //TODO: Detect idle mode and slow down stream
 
     clearTimeout(streamAnalogTimer);
 
-    console.log("serial.php?stream=" + stream);
+    console.log("serial.php?" + stream);
+
+    if(stream.length == 0)
+        return;
 
     streamHttpRequest = new XMLHttpRequest();
     streamHttpRequest.items = stream.split(",");
@@ -1460,7 +1510,9 @@ function streamView()
                 //console.log(streamHttpRequest.responseText);
                 
                 streamAnalogTimer = setTimeout(function() {
-                    streamView();
+                    streamView(serialStream);
+                    streamView(serialGet);
+                    streamView(serialRead);
                 }, streamHttpRequest.delay);
                 
             } else {
@@ -1490,7 +1542,7 @@ function streamView()
 
         }else{
             streamAnalogTimer = setTimeout(function() {
-                streamView();
+                streamView(stream);
             }, streamHttpRequest.delay);
 
             this.timeoutCount++;
@@ -1498,11 +1550,11 @@ function streamView()
     };
 
     streamHttpRequest.timeout = 10000;
-    streamHttpRequest.open('GET', "serial.php?stream=" + stream + "&loop=4&delay=" + streamHttpRequest.delay, true);
+    streamHttpRequest.open('GET', "serial.php?" + stream + "&loop=4&delay=" + streamHttpRequest.delay, true);
     streamHttpRequest.send();
 };
 
-function loadJSON(path, success, error)
+function ajaxReceive(path, success, error)
 {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", path, true);

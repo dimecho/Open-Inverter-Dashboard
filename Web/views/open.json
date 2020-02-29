@@ -1,7 +1,10 @@
 {
     "vehicle": "",
+    "dashboard": "Open Inverter Universal",
     "serial": 115200,
     "canbus": 250,
+    "timeout": 2000,
+    "opendbc" : "EV-can_ZE0.dbc",
     "analog": [
         {
             "index": 0,

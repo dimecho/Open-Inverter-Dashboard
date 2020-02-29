@@ -1,11 +1,6 @@
 {
     "index": [
-        {
-            "file": "open.json",
-            "name": "Open Inverter Universal"
-        },{
-            "file": "teensy.json",
-            "name": "Teensy BMS CANbus over Serial"
-        }
+    	"open.json",
+    	"teensy.json"
     ]
 }

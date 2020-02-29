@@ -16,6 +16,11 @@
             "href": "#openModal"
         },
         {
+            "icon": "canbus",
+            "title": "OpenDBC",
+            "href": "#openModal"
+        },
+        {
             "icon": "wifi",
             "title": "Wireless Settings",
             "href": "#openModal"
