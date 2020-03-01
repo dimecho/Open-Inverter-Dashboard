@@ -137,19 +137,29 @@ function animateView()
     });
 };
 
+function dynamicGaugeWidth(g)
+{
+    if(g.length > 4) { //max 4 gauges per row
+        return Math.round(getWidth() / 4) - 10;
+    }else{
+        return Math.round(getWidth() / g.length);
+    }
+};
+
 function sizeView(view)
 {
     if(view === "front")
     {
-        var w = Math.round(getWidth() / dashboardAnalog.length);
-        var h = 100; //Math.round(getHeight() - (w*2)); //TODO: calculate dynamically
-
-        adjustHeight = h;
+        var w = dynamicGaugeWidth(dashboardAnalog);
+        var dynamicHeight = getHeight();
         
         //alert(getHeight() + " " + w + ":" + h);
+        if(dashboardAnalog.length > 4 || dashboardDigital.length > 4) {
+            dynamicHeight /= 2;
+        }
 
-        if(dashboardDigital.length > 0)
-            h *=2;
+        if(json.alerts.length > 0)
+            dynamicHeight -= 200;
 
         for (var i = 0, l = document.gauges.length; i < l; i++) {
 
@@ -161,13 +171,14 @@ function sizeView(view)
                 //console.log("... adjust size " + gauge.options.renderTo);
 
                 gauge.options.width = w;
-                gauge.options.height = getHeight() - h;
+                gauge.options.height = dynamicHeight;
                 gauge.update();
 
+                /*
                 var td = document.getElementById(gauge.options.renderTo);
                 td.parentElement.width = gauge.options.width;
                 td.parentElement.height = gauge.options.height;
-            //}else {
+                */
             }
         }
 
@@ -184,23 +195,39 @@ function sizeView(view)
 
     }else if (view === "back") {
 
-        var divM = document.getElementById("backMenu");
-        var divA = document.getElementById("backAvailable");
-        var divB = document.getElementById("backAnalogSelected");
-        var divC = document.getElementById("backDigitalSelected");
+        var h = Math.round(getHeight() / 5);
+        var backMenu = document.getElementById("backMenu");
+        var backAvailable = document.getElementById("backAvailable");
+        var backAnalogSelected = document.getElementById("backAnalogSelected");
+        var backDigitalSelected = document.getElementById("backDigitalSelected");
 
-        divA.parentElement.height = Math.round(getHeight() / 5);
-        divC.parentElement.height = Math.round(getHeight() / 6);
-        divB.parentElement.height = getHeight() - divM.parentElement.height - divA.parentElement.height - divC.parentElement.height - adjustHeight*2;
+        backAvailable.parentElement.height = h;
 
-        //TODO: Better dynamic sizing
-        for (var i = 0; i < json.analog.length; i++) {
-            var img = document.getElementById("_" + json.analog[i].renderTo);
-            img.width = img.parentElement.parentElement.parentElement.parentElement.height;
+        for (var i = 0; i < dashboardHidden.length; i++) {
+            var img = document.getElementById("_" + dashboardHidden[i].renderTo);
+            img.width = backAvailable.parentElement.clientHeight;
         }
-        for (var i = 0; i < json.digital.length; i++) {
-            var img = document.getElementById("_" + json.digital[i].renderTo);
-            img.width = img.parentElement.parentElement.parentElement.parentElement.height * 1.5;
+
+        if(backAnalogSelected != undefined)
+        {
+            backAnalogSelected.parentElement.height = Math.round(getHeight() - backMenu.clientHeight - backAvailable.clientHeight);
+
+            var w = dynamicGaugeWidth(dashboardAnalog);
+            for (var i = 0; i < dashboardAnalog.length; i++) {
+                var img = document.getElementById("_" + dashboardAnalog[i].renderTo);
+                img.width = w * 0.8; //- backMenu.height;
+            }
+        }
+
+        if(backDigitalSelected != undefined)
+        {
+            backDigitalSelected.parentElement.height = Math.round(getHeight() - backMenu.clientHeight - h);
+        
+            //w = dynamicGaugeWidth(dashboardDigital);
+            for (var i = 0; i < dashboardDigital.length; i++) {
+                var img = document.getElementById("_" + dashboardDigital[i].renderTo);
+                img.width = w * 0.5; //backDigitalSelected.clientHeight;
+            }
         }
     }
 };
@@ -212,19 +239,23 @@ function buildMenu()
         console.log(data);
 
         var menu = document.getElementById("backMenu");
+        //menu.innerHTML = "";
+
+        var tr = document.createElement("tr");
 
         for (var key in data.menu)
         {
             console.log(data.menu[key].icon);
 
+            var td = document.createElement("td");
             var span = document.createElement("span");
             var svg = document.createElement("img");
 
             //svg.dataset.color = "";
             svg.classList.add("iconic");
             svg.classList.add("svg-grey");
-            svg.style.width = adjustHeight/2 + "px";
-            svg.style.height = adjustHeight/2 + "px";
+            svg.style.width = "50px";
+            svg.style.height = "50px";
             svg.src = "svg/" + data.menu[key].icon + ".svg";
             //svg.setAttribute("data-src", "svg/" + key + ".svg");
             span.style.position = "relative"; 
@@ -319,31 +350,35 @@ function buildMenu()
                 }
                 else if(this.id =="menu_view")
                 {
-                    ajaxReceive("views/index.json", function(data) {
+                    ajaxReceive("views/index.json", function(d) {
 
                         var center = document.createElement("center");
                         var select = document.createElement("select");
 
-                        for (var key in data.index) {
-                            ajaxReceive("views/" + data.index[key] , function(d) {
+                        for (var key in d.index) {
+                            var xhr = new XMLHttpRequest();
+                            xhr.open("GET", "views/" + d.index[key], false);
+                            xhr.onload = function () {
+                                //console.log(d.index[key]);
+                                var j = JSON.parse(this.responseText);
                                 var opt = document.createElement('option');
-                                opt.value = data.index[key];
-                                console.log(view);
+
+                                opt.value = d.index[key];
                                 if(opt.value == view) {
-                                    console.log(view);
                                     opt.selected = true;
                                 }else{
                                     opt.selected = false;
                                 }
-                                opt.append(d.dashboard);
+                                opt.append(j.dashboard);
                                 select.appendChild(opt);
-                            });
+                            };
+                            xhr.send();
                         }
                         center.appendChild(select);
                         lightboxBody.appendChild(center);
 
                         select.onchange = function () {
-                            //console.log(this.value);
+                            console.log(this.value);
                             window.location = "#close";
                             setCookie("view", this.value, 360);
                             location.reload();
@@ -642,8 +677,10 @@ function buildMenu()
                 }
             };
 
-            menu.appendChild(span);
+            td.appendChild(span);
+            tr.appendChild(td);
         }
+        menu.appendChild(tr);
 
     }, function(xhr) { console.error(xhr); });
 };
@@ -651,6 +688,9 @@ function buildMenu()
 function buildAlerts(view)
 {
     //console.log("alert icon height = " + adjustHeight + " | average view height = " + dashboardHeight);
+
+    if(json.alerts.length == 0)
+        return;
 
     var alerts = document.getElementById(view + "Alerts");
     alerts.innerHTML = "";
@@ -673,48 +713,95 @@ function buildAlerts(view)
     alerts.appendChild(td);
 };
 
+JSON.sort = function(js) {
+
+    var sortable = [];
+    for (var i in js) {
+        sortable.push([js[i].index, js[i]]);
+    }
+
+    sortable.sort(function(a, b){
+        return a[0] - b[0];
+    });
+
+    var objSorted = [];
+    sortable.forEach(function(item){
+        objSorted.push(item[1]);
+    });
+
+    return objSorted;
+};
+
 function buildView(view)
 {
+	dashboardHidden = [];
+    dashboardAnalog = [];
+    dashboardDigital = [];
+    
+    json.analog = JSON.sort(json.analog);
+    json.digital = JSON.sort(json.digital);
+
+    for (var i = 0; i < json.analog.length; i++) {
+    	console.log(i);
+        if(json.analog[i].enabled === true) {
+            dashboardAnalog.push(json.analog[i]);
+        }else{
+            dashboardHidden.push(json.analog[i]);
+        }
+    }
+    for (var i = 0; i < json.digital.length; i++) {
+        if(json.digital[i].enabled === true) {
+            dashboardDigital.push(json.digital[i]);
+        }else{
+            dashboardHidden.push(json.digital[i]);
+        }
+    }
+
+    var table = document.createElement("table");
     var side = document.getElementsByClassName(view);
+    side[0].innerHTML = ""; //empty view
     
     if(view === "front")
     {
-    	var table = document.createElement("table");
-    	var tr = document.createElement("tr");
+        if(dashboardAnalog.length > 0) {
 
-        for (var i = 0; i < json.analog.length; i++)
-        {
-            var td = document.getElementById("canvasAnalogIndex" + i);
+        	var table = document.createElement("table");
+        	var tr = document.createElement("tr");
+            table.appendChild(tr);
 
-            if (!(td instanceof HTMLCanvasElement)) {
-
-                var td = document.createElement("td");
-                td.id = "canvasAnalogIndex" + i;
-                tr.appendChild(td);
-
-                json.analog[i].width = Math.round(getWidth()/3);
-                json.analog[i].height = json.analog[i].width;
-            }
-        }
-        table.appendChild(tr);
-        side[0].appendChild(table);
-
-        table = document.createElement("table");
-        tr = document.createElement("tr");
-
-        for (var i = 0; i < json.digital.length; i++)
-        {
-            var td = document.getElementById("canvasDigitalIndex" + i);
-
-            if (!(td instanceof HTMLCanvasElement)) {
+            for (var i = 0; i < dashboardAnalog.length; i++)
+            {
+                if(i == 4 || i == 8) {
+                	side[0].appendChild(table);
+                	var table = document.createElement("table");
+    				var tr = document.createElement("tr");
+        			table.appendChild(tr);
+                }
 
                 var td = document.createElement("td");
-                td.id = "canvasDigitalIndex" + i;
+                td.id = "canvasAnalogIndex" + dashboardAnalog[i].index;
                 tr.appendChild(td);
             }
+            side[0].appendChild(table);
         }
-        table.appendChild(tr);
-        side[0].appendChild(table);
+
+        if(dashboardDigital.length > 0) {
+
+            var table = document.createElement("table");
+            var tr = document.createElement("tr");
+            table.appendChild(tr);
+
+            for (var i = 0; i < dashboardDigital.length; i++)
+            {
+                //var td = document.getElementById("canvasDigitalIndex" + i);
+                //if (!(td instanceof HTMLCanvasElement)) {
+                    var td = document.createElement("td");
+                    td.id = "canvasDigitalIndex" + dashboardDigital[i].index;
+                    tr.appendChild(td);
+                //}
+            }
+            side[0].appendChild(table);
+        }
 
         side[0].onclick = function () {
 
@@ -737,50 +824,44 @@ function buildView(view)
         
         side[0].style.background = document.body.style.backgroundColor;
 
-        var divM = document.createElement("div");
-        var divA = document.createElement("div");
-        var divB = document.createElement("div");
-        var divC = document.createElement("div");
-        var table = document.createElement("table");
+        var backMenu = document.createElement("table");
+        backMenu.id = "backMenu";
+        side[0].appendChild(backMenu);
 
-        divM.id = "backMenu";
-        divA.id = "backAvailable";
-        divB.id = "backAnalogSelected";
-        divC.id = "backDigitalSelected";
-
+        var backAvailable = document.createElement("div");
+        backAvailable.id = "backAvailable";
         var span = document.createElement("span");
         span.append("Drag & Drop");
-        divA.append(span);
-
-        var tr = document.createElement("tr");
-        var td = document.createElement("td");
-        td.setAttribute("valign", "top");
-        td.style.height = adjustHeight/2 + "px";
-        td.appendChild(divM);
-        tr.appendChild(td);
-        table.appendChild(tr);
-
+        backAvailable.appendChild(span);
         tr = document.createElement("tr");
         td = document.createElement("td");
         td.setAttribute("valign", "top");
-        td.appendChild(divA);
+        td.appendChild(backAvailable);
         tr.appendChild(td);
         table.appendChild(tr);
 
-        tr = document.createElement("tr");
-        td = document.createElement("td");
-        td.setAttribute("valign", "top");
-        td.appendChild(divB);
-        tr.appendChild(td);
-        table.appendChild(tr);
+        if(dashboardAnalog.length > 0) {
+            var divB = document.createElement("div");
+            divB.id = "backAnalogSelected";
+            tr = document.createElement("tr");
+            td = document.createElement("td");
+            td.setAttribute("valign", "top");
+            td.appendChild(divB);
+            tr.appendChild(td);
+            table.appendChild(tr);
+        }
 
-        tr = document.createElement("tr");
-        td = document.createElement("td");
-        //td.setAttribute("valign", "top");
-        //divC.height = adjustHeight *2 + "px";
-        td.appendChild(divC);
-        tr.appendChild(td);
-        table.appendChild(tr);
+        if(dashboardDigital.length > 0) {
+            var divC = document.createElement("div");
+            divC.id = "backDigitalSelected";
+            tr = document.createElement("tr");
+            td = document.createElement("td");
+            //td.setAttribute("valign", "top");
+            //divC.height = adjustHeight *2 + "px";
+            td.appendChild(divC);
+            tr.appendChild(td);
+            table.appendChild(tr);
+        }
 
         side[0].appendChild(table);
 
@@ -788,6 +869,7 @@ function buildView(view)
             //console.log(this);
             _alert.style.display = "none";
 
+            buildView("front");
             renderView("front");
 
             setTimeout(function() {
@@ -804,10 +886,13 @@ function buildView(view)
         };
     }
 
-    var table = document.createElement("table");
-    var tr = document.createElement("tr");
-    tr.id = view + "Alerts";
-    table.appendChild(tr);
+    if(json.alerts.length > 0)
+    {
+        var table = document.createElement("table");
+        var tr = document.createElement("tr");
+        tr.id = view + "Alerts";
+        table.appendChild(tr);
+    }
 
     side[0].appendChild(table);
 };
@@ -823,7 +908,7 @@ function renderViewBuild(g)
             t = "Digital";
         }
 
-        var render = document.getElementById(g[i].renderTo);
+        //var render = document.getElementById(g[i].renderTo);
         var td = document.getElementById("canvas" + t + "Index" + g[i].index);
 
         if(g[i].enabled)
@@ -869,54 +954,22 @@ function renderViewBuild(g)
                     CANBusRead.push(g[i].canbus);
                 }
             }
+            //console.log(JSON.stringify(g[i],null, 2));
 
-            if (render instanceof HTMLCanvasElement)
-            {
-                //if element exists we want to verify canvasAnalogIndex is correct
-                
-                //console.log(render.parentElement.id + " > " + g[i].index);
+            var canvas = document.createElement("canvas");
+            canvas.id = g[i].renderTo;
+            td.appendChild(canvas);
 
-                if(render.parentElement.id !== "canvas" + t + "Index" + g[i].index)
-                {
-                    console.log("index incorrect ...moving canvas");
-
-                    render.parentElement.width = 0;
-                    render.remove();
-                    td.appendChild(render);
-                }
-
-            }else{
-                //console.log(JSON.stringify(g[i],null, 2));
-
-                var canvas = document.createElement("canvas");
-                canvas.id = g[i].renderTo;
-                td.appendChild(canvas);
-
-                if(g[i].pattern != undefined) {
-                    var sd = new SegmentDisplay(g[i].renderTo);
-                    sd.pattern = g[i].pattern;
-                    sd.colorOn = g[i].colorOn;
-                    sd.colorOff = g[i].colorOff;
-                    sd.draw();
-                    sd.setValue(g[i].count);
-            	}else{
-					new RadialGauge(g[i]).draw();
-            	}
-            }
             if(g[i].pattern != undefined) {
-                dashboardDigital.push(g[i]);
-            }else{
-                dashboardAnalog.push(g[i]);
-            }
-        }else{
-
-            if (render instanceof HTMLCanvasElement) {
-                //console.log("...hide canvas " + g[i].renderTo);
-                render.parentElement.width = 0;
-                render.remove();
-            }
-            
-            dashboardHidden.push(g[i]);
+                var sd = new SegmentDisplay(g[i].renderTo);
+                sd.pattern = g[i].pattern;
+                sd.colorOn = g[i].colorOn;
+                sd.colorOff = g[i].colorOff;
+                sd.draw();
+                sd.setValue(g[i].count);
+        	}else{
+				new RadialGauge(g[i]).draw();
+        	}
         }
     }
 };
@@ -930,10 +983,6 @@ function renderView(view)
         serialStream = "stream=din_ocur";
         serialGet = "get=din_ocur";
         serialRead = "read=1";
-
-        dashboardHidden = [];
-        dashboardAnalog = [];
-        dashboardDigital = [];
 
         renderViewBuild(json.analog);
         renderViewBuild(json.digital);
@@ -966,9 +1015,7 @@ function renderView(view)
         var divC = document.getElementById("backDigitalSelected");
 
         divA.appendChild(buildGaugeList(dashboardHidden,"tile_Available"));
-        divB.appendChild(buildGaugeList(dashboardAnalog,"tile_AnalogSelected"));
-        divC.appendChild(buildGaugeList(dashboardDigital,"tile_DigitalSelected"));
-
+        
         new Sortable(document.getElementById('tile_Available'), {
             group: {
                 name: 'shared',
@@ -982,53 +1029,56 @@ function renderView(view)
             },
             */
             onAdd: function (event) {
-
-                event.item.width = divA.parentElement.height;
-
-                sortView(this, event, false);
-                //renderView("front");
+                event.item.width = divA.parentElement.clientHeight;
+                sortView(this, false);
             }
         });
-        new Sortable(document.getElementById('tile_AnalogSelected'), {
-            group: {
-                name: 'shared',
-                //pull: 'clone'
-            },
-            animation: 150,
-            sort: true,
-            /*
-            onChoose: function (evt) {
-                evt.item.setAttribute('width', "24%");
-            },
-            */
-            onAdd: function (event) {
-                //event.from;
-                event.item.width = divB.parentElement.height;
 
-                sortView(this, event, true);
-                //renderView("front");
-            },
-            //onUpdate: function (event) {
-            onSort: function (event) {
-                
-                sortView(this, event, true);
-                //renderView("front");
-            }
-        });
-        new Sortable(document.getElementById('tile_DigitalSelected'), {
-            group: {
-                name: 'shared',
-                //pull: 'clone'
-            },
-            animation: 150,
-            sort: true,
-            onAdd: function (event) {
-                //event.from;
-                event.item.width = divC.parentElement.height;
+        if(divB != undefined) {
+            divB.appendChild(buildGaugeList(dashboardAnalog,"tile_AnalogSelected"));
 
-                sortView(this, event, true);
-            }
-        });
+            new Sortable(document.getElementById('tile_AnalogSelected'), {
+                group: {
+                    name: 'shared',
+                    //pull: 'clone'
+                },
+                animation: 150,
+                sort: true,
+                /*
+                onChoose: function (evt) {
+                    evt.item.setAttribute('width', "24%");
+                },
+                */
+                onAdd: function (event) {
+                    event.item.width = dynamicGaugeWidth(dashboardAnalog) * 0.8;
+                    sortView(this, true);
+                },
+                onSort: function (event) {
+                    
+                    sortView(this, true);
+                }
+            });
+        }
+        if(divC != undefined) {
+            divC.appendChild(buildGaugeList(dashboardDigital,"tile_DigitalSelected"));
+
+            new Sortable(document.getElementById('tile_DigitalSelected'), {
+                group: {
+                    name: 'shared',
+                    //pull: 'clone'
+                },
+                animation: 150,
+                sort: true,
+                onAdd: function (event) {
+                    event.item.width = divC.parentElement.clientHeight;
+                    sortView(this, true);
+                },
+                onSort: function (event) {
+                    
+                    sortView(this, true);
+                }
+            });
+        }
     }
 
     sizeView(view);
@@ -1036,9 +1086,11 @@ function renderView(view)
     buildAlerts(view);
 };
 
-function sortView(list, event, enabled)
+function sortView(list, enabled)
 {
     var el = list.el;
+
+    //console.log(el);
 
     for (var e = 0; e < el.children.length; e++)
     {
@@ -1046,8 +1098,8 @@ function sortView(list, event, enabled)
         {
             if ("_" + json.analog[a].renderTo === el.children[e].id)
             {
-                //console.log(el.children[e].id + ":" + e);
-                
+            	//console.log(el.children[e].id + ":" + e);
+
                 json.analog[a].index = e;
                 json.analog[a].enabled = enabled;
                 break;
@@ -1064,16 +1116,17 @@ function sortView(list, event, enabled)
                 break;
             }
         }
-
+        /*
         for (var i = 0, l = document.gauges.length; i < l; i++)
         {
             var g = document.gauges[i];
             if ("_" + g.options.renderTo == el.children[e].id) {
-                g.options.index = e;
+                g.options.index = e + offset;
                 g.options.enabled = enabled;
                 break;
             }
         }
+        */
     }
     //console.log(event.item.id);
     //console.log(event.newIndex);
@@ -1107,7 +1160,7 @@ function buildAlertList(showAll,size)
             svg.classList.add("svg-grey");
             svg.style.width = size + "px";
             svg.style.height = size + "px";
-            svg.src = "svg/" + key + ".svg";
+            svg.src = "svg/" + json.alerts[key].icon + ".svg";
             //svg.setAttribute("data-src", "svg/" + key + ".svg");
             span.style.position = "relative";
             span.style.zIndex = "1";
@@ -1176,7 +1229,7 @@ function buildAlertList(showAll,size)
 
 function buildGaugeList(g,id,title)
 {
-	//console.log(g);
+	console.log(g);
 
     var tile = document.createElement("div");
     tile.classList.add("tile");
