@@ -8,9 +8,7 @@ var dashboardAnalog = [];
 var dashboardDigital = [];
 var adjustHeight;
 
-var serialStream = ""; //sends TX command then reads RX stream
-var serialGet = ""; //sends TX command then reads RX once
-var serialRead = ""; //reads incoming serial RX
+var serialStream = "";
 var CANBusRead = []; //reads incoming CAN messages
 var streamHttpRequest;
 var streamAnalogTimer;
@@ -385,12 +383,37 @@ function buildMenu()
                         };
                     });
                 }
-                else if(this.id =="menu_rfid")
+                else if(this.id =="menu_opendbc")
                 {
-                    var textarea = document.createElement("textarea");
-                    textarea.rows = "20";
-                    textarea.placeholder = "Unlock Codes (MIFARE Protocol 13.56 Mhz)";
-                    lightboxBody.appendChild(textarea);
+                    ajaxReceive("opendbc/index.json", function(data) {
+                        //console.log(data);
+                        if(data.index === 0) {
+                            var div = document.createElement("div");
+                            div.append("No DBC Files Found.");
+                            lightboxBody.appendChild(div);
+                        }else{
+                            var table = document.createElement("table");
+                            table.border = 0;
+
+                            for (var key in data.index) {
+                                var tr = document.createElement("tr");
+
+                                var td = document.createElement("td");
+                                td.append(data.index[key]);
+                                tr.appendChild(td);
+
+                                var a = document.createElement("a");
+                                a.href = "opendbc/delete?file=" + data.index[key];
+                                a.append("X");
+                                td = document.createElement("td");
+                                td.appendChild(a);
+                                tr.appendChild(td);
+
+                                table.appendChild(tr);
+                            }
+                            lightboxBody.appendChild(table);
+                        }
+                    });
                 }
                 else if(this.id =="menu_wifi")
                 {
@@ -468,10 +491,25 @@ function buildMenu()
                     log_interval.name = "EnableLOGInterval";
                     log_interval.placeholder = "Log Interval (seconds)";
 
+                    ssid_hidden_checkbox.onchange = function () {
+                        if(this.checked == true){
+                            ssid_hidden.value = 1;
+                        }else{
+                            ssid_hidden.value = 0;
+                        }
+                    };
+
+                    log_checkbox.onchange = function () {
+                        if(this.checked == true){
+                            log.value = 1;
+                        }else{
+                            log.value = 0;
+                        }
+                    };
+
                     ajaxReceive("nvram", function(data)
                     {
-                        console.log(data);
-
+                        //console.log(data);
                         if(Object.keys(data).length > 0) {
                             if(data["nvram0"] == "0") {
                                 mode_ap.checked = true;
@@ -495,7 +533,6 @@ function buildMenu()
                     var nvram = document.createElement("form");
                     nvram.method="POST";
                     nvram.action="nvram";
-
                     nvram.appendChild(mode_ap);
                     nvram.appendChild(mode_ap_text);
                     nvram.appendChild(mode_client);
@@ -514,7 +551,6 @@ function buildMenu()
                     nvram.appendChild(log_checkbox);
                     nvram.appendChild(log_text);
                     nvram.appendChild(log_interval);
-
                     lightboxBody.appendChild(nvram);
 
                     const typeWiFiHandler = function(e) {
@@ -530,15 +566,19 @@ function buildMenu()
                             }else if(password.value != passwordC.value) {
                                 alert("Confirm password must match");
                             }else{
+                                //Avoid POST sending checkbox values (javascript anomaly sends only 'on' state)
+                                ssid_hidden_checkbox.checked = false;
+                                log_checkbox.checked = false;
                                 nvram.submit();
                             }
                         }, 2000);
-                    }
+                    };
 
                     passwordC.addEventListener("input", typeWiFiHandler);
                 }
                 else if(this.id =="menu_network")
                 {
+                    var mode_ap = 0;
                     var dhcp = document.createElement("input");
                     var dhcp_checkbox = document.createElement("input");
                     var dhcp_text = document.createElement("span");
@@ -572,10 +612,40 @@ function buildMenu()
                     dns.name = "WiFiDNS";
                     dns.placeholder = "DNS Address (8.8.8.8)";
 
+                    ajaxReceive("nvram", function(data)
+                    {
+                        //console.log(data);
+                        if(Object.keys(data).length > 0) {
+                            if(data["nvram0"] == "1")
+                                mode_ap = 1;
+                        }
+                    });
+
+                    ajaxReceive("nvram?network=1", function(data)
+                    {
+                        //console.log(data);
+                        if(Object.keys(data).length > 0) {
+                            if(data["nvram7"] == "1") {
+                                dhcp.value = 1;
+                                dhcp_checkbox.checked = true;
+                                ip.disabled = true;
+                                subnet.disabled = true;
+                                gateway.disabled = true;
+                                dns.disabled = true;
+                            }else{
+                                dhcp.value = 0;
+                                dhcp_checkbox.checked = false;
+                            }
+                            ip.value = data["nvram8"];
+                            subnet.value = data["nvram9"];
+                            gateway.value = data["nvram10"];
+                            dns.value = data["nvram11"];
+                        }
+                    });
+
                     var nvram = document.createElement("form");
                     nvram.method="POST";
                     nvram.action="nvram";
-
                     nvram.appendChild(dhcp);
                     nvram.appendChild(dhcp_checkbox);
                     nvram.appendChild(dhcp_text);
@@ -585,17 +655,21 @@ function buildMenu()
                     nvram.appendChild(subnet);
                     nvram.appendChild(gateway);
                     nvram.appendChild(dns);
-
                     lightboxBody.appendChild(nvram);
 
                     dhcp_checkbox.onchange = function () {
                         if(this.checked == true){
+                            dhcp.value = 1;
                             ip.disabled = true;
                             subnet.disabled = true;
                             gateway.disabled = true;
                             dns.disabled = true;
+                            if(mode_ap == 0) {
+                                alert("WARNING: DHCP works only in WiFi Client mode");
+                            }
                             typeNetworkHandler();
                         }else{
+                            dhcp.value = 0;
                             ip.disabled = false;
                             subnet.disabled = false;
                             gateway.disabled = false;
@@ -621,21 +695,35 @@ function buildMenu()
                                     return;
                                 }
                             }
+                            //Avoid POST sending checkbox values (javascript anomaly sends only 'on' state)
+                            dhcp_checkbox.checked = false;
                             nvram.submit();
-                        }, 3200);
-                    }
+                        }, 3800);
+                    };
 
-                    //ip.addEventListener("input", typeNetworkHandler);
-                    //subnet.addEventListener("input", typeNetworkHandler);
-                    //gateway.addEventListener("input", typeNetworkHandler);
+                    ip.addEventListener("input", typeNetworkHandler);
+                    subnet.addEventListener("input", typeNetworkHandler);
+                    gateway.addEventListener("input", typeNetworkHandler);
                     dns.addEventListener("input", typeNetworkHandler);
                 }
                 else if(this.id =="menu_email")
                 {
+                    var notify = document.createElement("input");
+                    var notify_checkbox = document.createElement("input");
+                    var notify_text = document.createElement("span");
+
                     var email = document.createElement("input");
                     var smtp = document.createElement("input");
                     var username = document.createElement("input");
                     var password = document.createElement("input");
+
+                    notify.type = "hidden";
+                    notify.name = "WiFiNotify";
+                    notify.value = 0;
+                    notify_checkbox.type = "checkbox";
+                    notify_checkbox.name = "WiFiNotifyCheckbox";
+                    notify_text.append("Enable Email Notifications");
+                    notify_text.classList.add("formtext");
 
                     email.type = "text";
                     smtp.type = "text";
@@ -647,27 +735,69 @@ function buildMenu()
                     username.placeholder = "Email Username";
                     password.placeholder = "Email Password";
 
-                    email.value = json.notify.email;
-                    smtp.value = json.notify.smtp;
-                    username.value = json.notify.username;
-                    password.value = json.notify.password;
+                    var nvram = document.createElement("form");
+                    nvram.method="POST";
+                    nvram.action="nvram";
+                    nvram.appendChild(notify);
+                    nvram.appendChild(notify_checkbox);
+                    nvram.appendChild(notify_text);
+                    nvram.appendChild(document.createElement("br"));
+                    nvram.appendChild(document.createElement("br"));
+                    nvram.appendChild(email);
+                    nvram.appendChild(smtp);
+                    nvram.appendChild(username);
+                    nvram.appendChild(password);
+                    lightboxBody.appendChild(nvram);
 
-                    lightboxBody.appendChild(email);
-                    lightboxBody.appendChild(smtp);
-                    lightboxBody.appendChild(username);
-                    lightboxBody.appendChild(password);
-
-                    /*
-                    save.onclick = function (e) {
-
-                        json.wifi.email = email.value;
-                        json.wifi.smtp = smtp.value;
-                        json.wifi.username = username.value;
-                        json.wifi.password = password.value;
-
-                        window.location = "#close";
+                    notify_checkbox.onchange = function () {
+                        if(this.checked == true){
+                            notify.value = 1;
+                            //typeEmailHandler();
+                        }else{
+                            notify.value = 0;
+                        }
                     };
-                    */
+
+                    ajaxReceive("nvram?email=1", function(data)
+                    {
+                        //console.log(data);
+                        if(Object.keys(data).length > 0) {
+                            if(data["nvram12"] == "1") {
+                                notify.value = 1;
+                                notify_checkbox.checked = true;
+                            }else{
+                                notify.value = 0;
+                                notify_checkbox.checked = false;
+                            }
+                            email.value = data["nvram13"];
+                            smtp.value = data["nvram14"];
+                            username.value = data["nvram15"];
+                        }
+                    });
+
+                    const typeEmailHandler = function(e) {
+                        //console.log(e.target.value);
+
+                        clearTimeout(formTimer);
+                        formTimer = setTimeout(function()
+                        {
+                            if(email.value.length < 1 || email.value.includes("@", 1) == false) {
+                                alert("Email address invalid");
+                                return;
+                            }else if(smtp.value.length < 1 || smtp.value.includes(".", 1) == false) {
+                                alert("SMTP address invalid");
+                                return;
+                            }else if(password.value.length < 1) {
+                                alert("Password invalid");
+                                return;
+                            }
+                            //Avoid POST sending checkbox values (javascript anomaly sends only 'on' state)
+                            notify_checkbox.checked = false;
+                            nvram.submit();
+                        }, 3800);
+                    };
+
+                    password.addEventListener("input", typeEmailHandler);
                 }
 
                 if(this.href.indexOf("()") != -1) {
@@ -878,8 +1008,6 @@ function buildView(view)
                 saveView();
                 setTimeout(function() {
                     streamView(serialStream);
-                    streamView(serialGet);
-                    streamView(serialRead);
                 }, 4000);
             }, 1000);
             this.parentElement.style.cssText = "";
@@ -914,13 +1042,7 @@ function renderViewBuild(g)
         if(g[i].enabled)
         {
             //console.log(gauge[i].renderTo);
-            if(g[i].stream == "read") {
-                serialRead += "," + g[i].serial;
-            }else if(g[i].stream == "stream") {
-                serialStream += "," + g[i].serial;
-            }else{
-                serialGet += "," + g[i].serial;
-            }
+            serialStream += "," + g[i].serial;
 
             if(g[i].canbus != "") {
                 if(g[i].opendbc != "") {
@@ -980,9 +1102,13 @@ function renderView(view)
 
     if(view === "front")
     {
-        serialStream = "stream=din_ocur";
-        serialGet = "get=din_ocur";
-        serialRead = "read=1";
+        if(json.stream === "read") {
+            serialStream = "stream=din_ocur"; //sends TX command then reads RX stream
+        }else if(json.stream === "get") {
+            serialStream = "get=din_ocur"; //sends TX command then reads RX once
+        }else{
+            serialStream = "read=1"; //reads incoming serial RX
+        }
 
         renderViewBuild(json.analog);
         renderViewBuild(json.digital);
@@ -1348,7 +1474,7 @@ function streamInit(serial,canbus)
                 error = xhr.responseText;
 
                 if(error.indexOf("Serial") != -1 || error.indexOf("CAN") != -1) {
-                    streamView();
+                    streamView(serialStream);
                     return;
                 }
             } else {
@@ -1564,8 +1690,6 @@ function streamView(stream)
                 
                 streamAnalogTimer = setTimeout(function() {
                     streamView(serialStream);
-                    streamView(serialGet);
-                    streamView(serialRead);
                 }, streamHttpRequest.delay);
                 
             } else {
@@ -1595,7 +1719,7 @@ function streamView(stream)
 
         }else{
             streamAnalogTimer = setTimeout(function() {
-                streamView(stream);
+                streamView(serialStream);
             }, streamHttpRequest.delay);
 
             this.timeoutCount++;

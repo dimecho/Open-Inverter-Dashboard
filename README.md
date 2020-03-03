@@ -4,7 +4,8 @@
 
 Web-interface dashboard for [Open Inverter Project](https://openinverter.org)
 
-> * Universal CAN/UART signals processed by ESP8266
+> * CAN/UART signals processed by ESP8266
+> * OpenDBC integration
 > * Dynamic drag-drop interface
 > * Email alerts over WiFi
 

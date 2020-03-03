@@ -4,6 +4,7 @@
     "serial": 115200,
     "canbus": 250,
     "timeout": 2000,
+    "stream": "",
     "opendbc": "EV-can_ZE0.dbc",
     "analog": [
         {

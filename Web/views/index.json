@@ -1,6 +1,7 @@
 {
     "index": [
     	"open.json",
-    	"teensy.json"
+    	"teensy.json",
+    	"rusty.json"
     ]
 }
