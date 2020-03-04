@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <SPIFFS.h>
+#include <Update.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
@@ -40,6 +41,27 @@ char NOTIFY_EMAIL_PASSWORD[] = "";
 const char text_html[] = "text/html";
 const char text_plain[] = "text/plain";
 const char text_json[] = "application/json";
+static const char serverIndex[] PROGMEM =
+  R"(<!DOCTYPE html>
+<html lang='en'>
+<head>
+   <meta charset='utf-8'>
+   <meta name='viewport' content='width=device-width,initial-scale=1'/>
+</head>
+<body>
+<form method='POST' action='' enctype='multipart/form-data'>
+   Firmware:<br>
+   <input type='file' accept='.bin' name='firmware'>
+   <input type='submit' value='Update Firmware'>
+</form>
+<form method='POST' action='' enctype='multipart/form-data'>
+   FileSystem:<br>
+   <input type='file' accept='.bin' name='filesystem'>
+   <input type='submit' value='Update FileSystem'>
+</form>
+</body>
+</html>)";
+bool restartRequired = false;  // Set this flag in the callbacks to restart ESP in the main loop
 
 //====================
 //CAN-Bus
@@ -118,7 +140,7 @@ void setup()
   String nvram = "";
 
   if (e == 255) { //if (NVRAM_Read(0) == "") {
-    aes_init(); //Generate random IV
+    //aes_init(); //Generate random IV
     NVRAM_Erase();
     NVRAM_Write(0, String(ACCESS_POINT_MODE));
     NVRAM_Write(1, String(ACCESS_POINT_HIDE));
@@ -278,9 +300,9 @@ void setup()
 
     String out = "{}";
 
-    if (request->getParam(0)->name() == "network") {
+    if (request->hasParam("network")) {
       out = NVRAM(7, 11, -1);
-    } else if (request->getParam(0)->name() == "email") {
+    } else if (request->hasParam("email")) {
       out = NVRAM(12, 15, -1);
     } else {
       out = NVRAM(0, 6, 4);
@@ -289,24 +311,49 @@ void setup()
   });
   server.on("/nvram", HTTP_POST, [](AsyncWebServerRequest * request) {
 
-    String out = "{}";
+    String out = "<pre>";
+    uint8_t c, from, to = 0;
+    uint8_t skip = -1;
 
-    if (request->getParam(0)->name() == "WiFiMode") {
+    if (request->hasParam("WiFiMode")) {
       //skip confirm password (5)
-      out = NVRAMUpload(0, 7, 5, request);
-    } else if (request->getParam(0)->name() == "WiFiDHCP") {
-      out = NVRAMUpload(7, 11, -1, request);
-    } else if (request->getParam(0)->name() == "WiFiNotify") {
-      out = NVRAMUpload(12, 16, -1, request);
-    } else {
-      NVRAM_Erase();
+      from = 0, to = 7, skip = 5;
+    } else if (request->hasParam("WiFiDHCP")) {
+      from = 7, to = 11;
+    } else if (request->hasParam("WiFiNotify")) {
+      from = 12, to = 16;
     }
 
-    SPIFFS.remove("/data.txt"); //Clean old logs
+    for (uint8_t i = from; i <= to; i++) {
+
+      String v = request->getParam(c)->value();
+
+      //Catch and encrypt passwords
+      if (request->getParam(c)->name() == "EmailPassword") {
+        v = encrypt(string2char(v), aes_iv);
+        //Serial.println(v);
+      }
+
+      if (skip == -1 || i < skip) {
+        out += request->getParam(c)->name() + ": ";
+        NVRAM_Write(i, v);
+        out += NVRAM_Read(i) + "\n";
+      } else if (i > skip) {
+        out += request->getParam(c)->name() + ": ";
+        NVRAM_Write(i - 1, v);
+        out += NVRAM_Read(i - 1) + "\n";
+      }
+      c++;
+    }
+    
+    out += "\n...Rebooting";
+    out += "</pre>";
+
+    //SPIFFS.remove("/data.txt"); //Clean old logs
 
     AsyncWebServerResponse *response = request->beginResponse(200,  text_html, out);
 
-    if (request->getParam(3)->name() == "WiFiIP") { //IP has changed
+    if (request->hasParam("WiFiIP")) { //IP has changed
       response->addHeader("Refresh", "10; url=http://" + request->getParam("WiFiIP")->value() + "/index.html");
     } else {
       response->addHeader("Refresh", "8; url=/index.html");
@@ -320,22 +367,22 @@ void setup()
     ESP.restart();
   });
 
-  server.serveStatic("/update", SPIFFS, "/").setDefaultFile("update.html");
-  server.on("/update", HTTP_POST, [](AsyncWebServerRequest * request) {
+  server.on("/update", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(200, text_html, serverIndex);
+  });
 
+  server.on("/update", HTTP_POST, [](AsyncWebServerRequest * request) {
     if (Update.hasError()) {
       StreamString str;
       Update.printError(str);
-      request->send(200,  text_plain, str.c_str());
+      request->send(200,  text_plain, String("Update error: ") + str.c_str());
     } else {
-      request->send(200,  text_plain, "Update Success: %u\nRebooting...\n");
-    }
-    /*
-      AsyncWebServerResponse *response = request->beginResponse(200, text_plain, (Update.hasError()) ? "FAILED" : "OK");
-      response->addHeader("Connection", "close");
-      response->addHeader("Access-Control-Allow-Origin", "*");
+      AsyncWebServerResponse *response = request->beginResponse(200,  text_html, "Update Success! Rebooting...");
+      response->addHeader("Refresh", "15; url=/");
+      restartRequired = true;
       request->send(response);
-    */
+      //ESP.restart();
+    }
   }, WebUpload);
 
   server.on("/snapshot.php", HTTP_POST, [](AsyncWebServerRequest * request) {
@@ -352,7 +399,7 @@ void setup()
     });
   */
   server.on("/serial.php", HTTP_GET, [](AsyncWebServerRequest * request) {
-    if (request->getParam(0)->name() == "init") {
+    if (request->hasParam("init")) {
       Serial.end();
       Serial.begin(request->getParam("serial")->value().toInt(), SERIAL_8N1);
 
@@ -362,7 +409,7 @@ void setup()
       } else {
         request->send(200, text_plain, "Serial");
       }
-    } else if (request->getParam(0)->name() == "read") {
+    } else if (request->hasParam("read")) {
       String out = "";
       if (Serial.available()) {
         out = Serial.readString();
@@ -373,7 +420,7 @@ void setup()
 
       request->send(200, text_plain, out);
 
-    } else if (request->getParam(0)->name() == "get") {
+    } else if (request->hasParam("get")) {
       String sz =  request->getParam("get")->value();
       String out;
 
@@ -392,16 +439,11 @@ void setup()
       }
       request->send(200, text_plain, out);
 
-    } else if (request->getParam(0)->name() == "command") {
-      /*
-        int params = request->params();
-        for(i=0;i<params;i++){
-        }
-        AsyncWebParameter* p = request->getParam(i)
-      */
+    } else if (request->hasParam("command")) {
+
       request->send(200, text_plain, readSerial(request->getParam("command")->value()));
 
-    } else if (request->getParam(0)->name() == "stream") {
+    } else if (request->hasParam("stream")) {
 
       AsyncResponseStream *response = request->beginResponseStream(text_plain);
       response->addHeader("Cache-Control", "no-cache");
@@ -414,7 +456,7 @@ void setup()
 
       flushSerial();
 
-      Serial.print("get" + request->getParam("stream")->value());
+      Serial.print("get " + request->getParam("stream")->value());
       Serial.print("\n");
       Serial.readStringUntil('\n'); //consume echo
 
@@ -441,8 +483,8 @@ void setup()
       request->send(response);
     }
   });
-  server.on("/opendbc/index.json", HTTP_POST, [](AsyncWebServerRequest * request) {
-    String out = indexJSON("/opendbc");
+  server.on("/opendbc/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
+    String out = indexJSON("/opendbc", ".dbc");
     request->send(200, text_json, out);
   });
   server.on("/opendbc/delete", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -452,54 +494,46 @@ void setup()
     response->addHeader("Refresh", "3; url=/index.html");
     request->send(response);
   });
-  server.on("/views/index.json", HTTP_POST, [](AsyncWebServerRequest * request) {
-    String out = indexJSON("/views");
+  server.on("/views/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
+    String out = indexJSON("/views", ".json");
     request->send(200, text_json, out);
   });
   server.on("/views/save.php", HTTP_POST, [](AsyncWebServerRequest * request) {
 
-    //Serial.print(server.arg("json"));
-
-    File file = SPIFFS.open("/views/" + request->getParam(1)->value(), "w");
+    File file = SPIFFS.open("/views/" + request->getParam("view")->value(), "w");
     file.print(request->getParam("json")->value());
     file.close();
-
     request->send(200, text_plain, "");
   });
+
   server.on("/", [](AsyncWebServerRequest * request) {
     if (SPIFFS.exists("/index.html")) {
-      AsyncWebServerResponse *response = request->beginResponse(303);
-      response->addHeader("Location", "/index.html");
-      request->send(response);
+      request->redirect("/index.html");
     } else {
       AsyncWebServerResponse *response = request->beginResponse(200, text_html, "File System Not Found ...Upload SPIFFS");
       response->addHeader("Refresh", "6; url=/update");
       request->send(response);
     }
   });
+
+  //server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
   server.onNotFound([](AsyncWebServerRequest * request) {
 
     //Serial.println((request->method() == HTTP_GET) ? "GET" : "POST");
 
-    String file = request->url();
+    String file = request->url(); //Serial.println("Request:" + file);
 
     if (SPIFFS.exists(file))
     {
-      File f = SPIFFS.open(file, "r");
-      uint8_t byteArray;
-      f.read(&byteArray, sizeof(byteArray));
-      f.close();
+        String contentType = getContentType(file);
 
-      String contentType = getContentType(file);
-      if (request->getParam(0)->name() == "download") contentType = "application/octet-stream";
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, request->url(), contentType, request->hasParam("download"));
 
-      AsyncWebServerResponse *response = request->beginResponse(200, contentType, String ((char*)byteArray));
-      if (contentType != text_json)
-      {
-        response->addHeader("Content-Encoding", "gzip");
-      }
-      request->send(response);
-
+        if (contentType != text_json) {
+          response->addHeader("Content-Encoding", "gzip");
+        }
+        request->send(response);
+ 
     } else {
       request->send(404, text_plain, "404: Not Found");
     }
@@ -523,6 +557,11 @@ void setup()
 
 void loop()
 {
+  if (restartRequired) {
+    //Serial.println("Restarting ESP");
+    restartRequired = false;
+    ESP.restart();
+  }
   //server.handleClient();
   //ArduinoOTA.handle();
   //yield();
@@ -554,41 +593,6 @@ String NVRAM(uint8_t from, uint8_t to, uint8_t skip)
   return out;
 }
 
-String NVRAMUpload(uint8_t from, uint8_t to, uint8_t skip, AsyncWebServerRequest* request)
-{
-  //NVRAM_Erase();
-
-  String out = "<pre>";
-  uint8_t c = 0;
-
-  for (uint8_t i = from; i <= to; i++) {
-
-    String v = request->getParam(c)->value();
-
-    //Catch and encrypt passwords
-    if (request->getParam(c)->name() == "EmailPassword") {
-      v = encrypt(string2char(v), aes_iv);
-      //Serial.println(v);
-    }
-
-    if (skip == -1 || i < skip) {
-      out += request->getParam(c)->name() + ": ";
-      NVRAM_Write(i, v);
-      out += NVRAM_Read(i) + "\n";
-    } else if (i > skip) {
-      out += request->getParam(c)->name() + ": ";
-      NVRAM_Write(i - 1, v);
-      out += NVRAM_Read(i - 1) + "\n";
-    }
-    c++;
-  }
-
-  out += "\n...Rebooting";
-  out += "</pre>";
-
-  return out;
-}
-
 void NVRAM_Erase()
 {
   for (uint16_t i = 0 ; i < EEPROM.length() ; i++) {
@@ -614,14 +618,17 @@ String NVRAM_Read(uint32_t address)
   return String(arrayToStore);
 }
 
-String indexJSON(String dir)
+String indexJSON(String dir, String ext)
 {
   String out = "{\n\t\"index\": [\n";
 
   Dir files = SPIFFS.openDir(dir);
   while (files.next()) {
-    out += "\t\t\"" + files.fileName() + "\",\n";
+    if (files.fileName().endsWith(ext)) {
+      out += "\t\t\"" + files.fileName() + "\",\n";
+    }
   }
+  out = out.substring(0, (out.length() - 2));
   out += "\t]\n}";
 
   return out;
@@ -654,23 +661,25 @@ String getContentType(String filename)
 void WebUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
   if (!index) {
+    //Serial.print(request->params());
 
-    Update.runAsync(true); // tell the updaterClass to run in async mode
-
-    if (request->getParam(0)->name() == "filesystem") {
+    if (filename == "flash-spiffs.bin") { //if (request->getParam(0)->name() == "filesystem") {
+      //SPIFFS.format();
       size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
+      //Serial.printf("Free SPIFFS Space: %u\n", fsSize);
+      //Serial.printf("SPIFFS Flash Offset: %u\n", U_FS);
       close_all_fs();
       if (!Update.begin(fsSize, U_FS)) { //start with max available size
         Update.printError(Serial);
-      } else {
-        SPIFFS.format();
       }
     } else {
-      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000; //calculate sketch space required for the update
+      //Serial.printf("Free Scketch Space: %u\n", maxSketchSpace);
       if (!Update.begin(maxSketchSpace, U_FLASH)) { //start with max available size
         Update.printError(Serial);
       }
     }
+    Update.runAsync(true); // tell the updaterClass to run in async mode
   }
 
   if (Update.write(data, len) != len) {
@@ -712,19 +721,15 @@ String flushSerial()
 
 String readSerial(String cmd)
 {
-  char b[255];
-  String output;
-
   flushSerial();
 
   Serial.print(cmd);
-  Serial.print("\n");
+  Serial.print('\n');
   Serial.readStringUntil('\n'); //consume echo
-  //for (uint16_t i = 0; i <= cmd.length() + 1; i++)
-  //  Serial.read();
 
-  output = Serial.readString(); //Faster than binary read
+  String output = Serial.readString(); //Faster than binary read
   /*
+    char b[255];
     size_t len = 0;
     do {
     memset(b, 0, sizeof(b));
