@@ -35,6 +35,11 @@ Foreach-Object {
 	}
 }
 
+Get-ChildItem .\spiffs -Recurse -Filter index.json | 
+Foreach-Object {
+    Remove-Item $_.FullName
+}
+
 #==============
 #Compress Files
 #==============

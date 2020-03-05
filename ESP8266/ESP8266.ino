@@ -345,7 +345,7 @@ void setup()
       }
       c++;
     }
-    
+
     out += "\n...Rebooting";
     out += "</pre>";
 
@@ -403,22 +403,14 @@ void setup()
       Serial.end();
       Serial.begin(request->getParam("serial")->value().toInt(), SERIAL_8N1);
 
-      if (CAN0.checkReceive() == CAN_MSGAVAIL) //if (CAN0.begin(request->getParam("canbus")->value().toInt()) == CAN_OK)
-      {
-        request->send(200, text_plain, "CAN");
-      } else {
-        request->send(200, text_plain, "Serial");
+      String com = "";
+      if (CAN0.checkReceive() == CAN_MSGAVAIL) { //if (CAN0.begin(request->getParam("canbus")->value().toInt()) == CAN_OK)
+        com  += "CAN";
       }
-    } else if (request->hasParam("read")) {
-      String out = "";
-      if (Serial.available()) {
-        out = Serial.readString();
+      if (Serial) {
+        com  += "Serial";
       }
-
-      //DEBUG
-      out = "v:8,b:8,n:8,i:8,p:10,ah:10,kwh:10,t:30*";
-
-      request->send(200, text_plain, out);
+      request->send(200, text_plain, com);
 
     } else if (request->hasParam("get")) {
       String sz =  request->getParam("get")->value();
@@ -481,10 +473,20 @@ void setup()
         delay(_delay);
       }
       request->send(response);
+    }else{
+      //DEBUG
+      //request->send(200, text_plain, "v:8,b:8,n:8,i:8,p:10,ah:10,kwh:10,t:30*");
+
+      if (Serial.available()) {
+        request->send(200, text_plain, Serial.readStringUntil('\n'));
+      } else {
+        request->send(500);
+      }
     }
   });
   server.on("/opendbc/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
-    String out = indexJSON("/opendbc", ".dbc");
+    String ext[]={".dbc"};
+    String out = indexJSON("/opendbc", ext);
     request->send(200, text_json, out);
   });
   server.on("/opendbc/delete", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -495,7 +497,13 @@ void setup()
     request->send(response);
   });
   server.on("/views/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
-    String out = indexJSON("/views", ".json");
+    String ext[]={".json"};
+    String out = indexJSON("/views", ext);
+    request->send(200, text_json, out);
+  });
+  server.on("/views/bg/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
+    String ext[]={".jpg",".png"};
+    String out = indexJSON("/views/bg", ext);
     request->send(200, text_json, out);
   });
   server.on("/views/save.php", HTTP_POST, [](AsyncWebServerRequest * request) {
@@ -525,15 +533,15 @@ void setup()
 
     if (SPIFFS.exists(file))
     {
-        String contentType = getContentType(file);
+      String contentType = getContentType(file);
 
-        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, request->url(), contentType, request->hasParam("download"));
+      AsyncWebServerResponse *response = request->beginResponse(SPIFFS, request->url(), contentType, request->hasParam("download"));
 
-        if (contentType != text_json) {
-          response->addHeader("Content-Encoding", "gzip");
-        }
-        request->send(response);
- 
+      if (contentType != text_json) {
+        response->addHeader("Content-Encoding", "gzip");
+      }
+      request->send(response);
+
     } else {
       request->send(404, text_plain, "404: Not Found");
     }
@@ -618,16 +626,19 @@ String NVRAM_Read(uint32_t address)
   return String(arrayToStore);
 }
 
-String indexJSON(String dir, String ext)
+String indexJSON(String dir, String ext[])
 {
   String out = "{\n\t\"index\": [\n";
 
   Dir files = SPIFFS.openDir(dir);
   while (files.next()) {
-    if (files.fileName().endsWith(ext)) {
-      out += "\t\t\"" + files.fileName() + "\",\n";
+    for (int i=0; i<sizeof(ext); i++) {
+        if (files.fileName().endsWith(ext[i])) {
+          out += "\t\t\"" + files.fileName() + "\",\n";
+        }
     }
   }
+  
   out = out.substring(0, (out.length() - 2));
   out += "\t]\n}";
 
@@ -655,15 +666,13 @@ String getContentType(String filename)
 //===============
 //Web OTA Updater
 //===============
-//https://github.com/me-no-dev/ESPAsyncWebServer/issues/3
-//https://gist.github.com/JMishou/60cb762047b735685e8a09cd2eb42a60
-
 void WebUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
   if (!index) {
     //Serial.print(request->params());
 
-    if (filename == "flash-spiffs.bin") { //if (request->getParam(0)->name() == "filesystem") {
+    if (filename == "flash-spiffs.bin") {
+      //if (request->hasParam("filesystem")) {
       //SPIFFS.format();
       size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
       //Serial.printf("Free SPIFFS Space: %u\n", fsSize);

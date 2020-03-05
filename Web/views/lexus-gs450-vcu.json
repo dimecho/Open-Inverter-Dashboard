@@ -1,6 +1,6 @@
 {
-    "vehicle": "",
-    "dashboard": "Teensy BMS CANbus over Serial",
+    "vehicle": "Lexus GS450",
+    "dashboard": "Lexus GS450 VCU over Serial",
     "serial": 19200,
     "canbus": 0,
     "timeout": 2000,
@@ -11,9 +11,9 @@
             "index": 0,
             "serial": "v:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "v1",
+            "renderTo": "v:",
             "units": "V",
             "title": "Pack Voltage 1",
             "width": 407,
@@ -21,7 +21,7 @@
             "highlights": [
                 {
                     "from": 0,
-                    "to": 100,
+                    "to": 300,
                     "color": "rgba(90,90,90,0.8)"
                 }
             ],
@@ -61,9 +61,9 @@
             "index": 1,
             "serial": "b:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "v2",
+            "renderTo": "b:",
             "units": "V",
             "title": "Pack Voltage 2",
             "width": 407,
@@ -71,7 +71,7 @@
             "highlights": [
                 {
                     "from": 0,
-                    "to": 100,
+                    "to": 300,
                     "color": "rgba(90,90,90,0.8)"
                 }
             ],
@@ -111,9 +111,9 @@
             "index": 2,
             "serial": "n:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "v3",
+            "renderTo": "n:",
             "units": "V",
             "title": "Pack Voltage 3",
             "width": 407,
@@ -121,7 +121,7 @@
             "highlights": [
                 {
                     "from": 0,
-                    "to": 100,
+                    "to": 300,
                     "color": "rgba(90,90,90,0.8)"
                 }
             ],
@@ -161,9 +161,9 @@
             "index": 3,
             "serial": "i:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "i",
+            "renderTo": "i:",
             "units": "A",
             "title": "Current",
             "width": 407,
@@ -211,9 +211,9 @@
             "index": 4,
             "serial": "p:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "p",
+            "renderTo": "p:",
             "units": "KW",
             "title": "Power",
             "width": 407,
@@ -221,7 +221,7 @@
             "highlights": [
                 {
                     "from": 0,
-                    "to": 100,
+                    "to": 200,
                     "color": "rgba(90,90,90,0.8)"
                 }
             ],
@@ -261,9 +261,9 @@
             "index": 5,
             "serial": "ah:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "ah",
+            "renderTo": "ah:",
             "units": "Ah",
             "title": "Ampere Hours",
             "width": 407,
@@ -311,9 +311,9 @@
             "index": 6,
             "serial": "kwh:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "kwh",
+            "renderTo": "kwh:",
             "units": "KWh",
             "title": "Kilowatt Hours",
             "width": 407,
@@ -361,9 +361,9 @@
             "index": 7,
             "serial": "t:",
             "canbus": "",
-            "logic": "",
+            "regex": "/\\d{1,}/g",
             "enabled": true,
-            "renderTo": "temp",
+            "renderTo": "t:",
             "units": "C",
             "title": "Temperature",
             "width": 407,

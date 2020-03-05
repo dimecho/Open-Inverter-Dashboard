@@ -8,10 +8,10 @@ var dashboardAnalog = [];
 var dashboardDigital = [];
 var adjustHeight;
 
-var serialStream = "";
-var CANBusRead = []; //reads incoming CAN messages
+var serialRX = []; //holds required UART requests
+var CANBusRX = []; //holds required CAN requests
 var streamHttpRequest;
-var streamAnalogTimer;
+var serialAjaxTimer;
 var streamDigitalTimer;
 
 var formTimer;
@@ -66,10 +66,10 @@ document.addEventListener("DOMContentLoaded", function(event)
     }
 
     if (view === undefined) {
-        view = "open.json";
+        view = "/views/open.json";
     }
 
-    ajaxReceive("views/" + view, function(data)
+    ajaxReceive(view, function(data)
     {
         //console.log(data);
         json = data;
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", function(event)
 
     }, function(xhr) {
         console.error(xhr);
-        setCookie("view", "open.json", 360);
+        setCookie("view", "/views/open.json", 360);
         location.reload();
     });
 });
@@ -106,7 +106,7 @@ function addText(node,text)
     }
 };
 
-function detectSeperator(text)
+function detectDelimiter(text)
 {
     var s = [",", ":", ";"];
     
@@ -310,7 +310,7 @@ function buildMenu()
                             input.id = "img-" + u;
                             input.checked = true;
 
-                            img.src = "views/bg/" + data.index[u];
+                            img.src = data.index[u];
                             div.appendChild(img);
                             li.appendChild(div);
 
@@ -355,9 +355,10 @@ function buildMenu()
 
                         for (var key in d.index) {
                             var xhr = new XMLHttpRequest();
-                            xhr.open("GET", "views/" + d.index[key], false);
+                            xhr.open("GET", d.index[key], false);
                             xhr.onload = function () {
                                 //console.log(d.index[key]);
+                                
                                 var j = JSON.parse(this.responseText);
                                 var opt = document.createElement('option');
 
@@ -387,11 +388,17 @@ function buildMenu()
                 {
                     ajaxReceive("opendbc/index.json", function(data) {
                         //console.log(data);
+
+                        var e = document.createElement("div");
+                        e.innerHTML = "<a href=\"https://github.com/commaai/opendbc\" target=\"_blank\">OpenDBC Vehicle Database</a><br><br>";
+                        lightboxBody.appendChild(e);
+
                         if(data.index === 0) {
                             var div = document.createElement("div");
                             div.append("No DBC Files Found.");
                             lightboxBody.appendChild(div);
                         }else{
+
                             var table = document.createElement("table");
                             table.border = 0;
 
@@ -939,7 +946,7 @@ function buildView(view)
 
             if(streamHttpRequest != undefined)
                 streamHttpRequest.abort();
-            clearTimeout(streamAnalogTimer);
+            clearTimeout(serialAjaxTimer);
 
             buildView("back");
             renderView("back");
@@ -1006,9 +1013,7 @@ function buildView(view)
                 side[0].innerHTML = ""; //empty view
                 animateView();
                 saveView();
-                setTimeout(function() {
-                    streamView(serialStream);
-                }, 4000);
+                streamInit(json.serial,json.canbus);
             }, 1000);
             this.parentElement.style.cssText = "";
         };
@@ -1042,7 +1047,11 @@ function renderViewBuild(g)
         if(g[i].enabled)
         {
             //console.log(gauge[i].renderTo);
-            serialStream += "," + g[i].serial;
+            if(g[i].serial != "")
+            	serialRX.push(g[i].serial);
+
+            if(g[i].canbus != "")
+            	CANBusRX.push(g[i].canbus);
 
             if(g[i].canbus != "") {
                 if(g[i].opendbc != "") {
@@ -1084,6 +1093,7 @@ function renderViewBuild(g)
 
             if(g[i].pattern != undefined) {
                 var sd = new SegmentDisplay(g[i].renderTo);
+                sd.regex = g[i].regex;
                 sd.pattern = g[i].pattern;
                 sd.colorOn = g[i].colorOn;
                 sd.colorOff = g[i].colorOff;
@@ -1102,14 +1112,6 @@ function renderView(view)
 
     if(view === "front")
     {
-        if(json.stream === "read") {
-            serialStream = "stream=din_ocur"; //sends TX command then reads RX stream
-        }else if(json.stream === "get") {
-            serialStream = "get=din_ocur"; //sends TX command then reads RX once
-        }else{
-            serialStream = "read=1"; //reads incoming serial RX
-        }
-
         renderViewBuild(json.analog);
         renderViewBuild(json.digital);
 
@@ -1462,27 +1464,35 @@ function buildGaugeList(g,id,title)
 
 function streamInit(serial,canbus)
 {
+	//DEBUG
+	//============
+	//serialAjax(serialRX);
+	//return;
+	//============
+
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
+        if (this.readyState === 4) {
 
-            var error = "";
+            if (this.status === 200) {
 
-            if (xhr.status === 200) {
+                console.log(this.responseText);
+                var com = this.responseText;
 
-                console.log(xhr.responseText);
-                error = xhr.responseText;
-
-                if(error.indexOf("Serial") != -1 || error.indexOf("CAN") != -1) {
-                    streamView(serialStream);
-                    return;
+                if(com.indexOf("Serial") != -1) {
+                    serialAjax(serialRX);
+                }
+                if(com.indexOf("CAN") != -1) {
+                    canbusAjax(CANBusRX);
                 }
             } else {
-                console.log(xhr.statusText);
-                error = xhr.statusText;
+                //console.log(this.statusText);
+                _alert.innerHTML = "Cannot Initialize Serial or CAN " + this.statusText;
+            	_alert.style.display = "block";
+                setTimeout(function() {
+                    _alert.style.display = "none";
+                }, 4000);
             }
-            _alert.innerHTML = "Cannot Initialize Serial or CAN " + error;
-            _alert.style.display = "block";
         }
     }
 
@@ -1518,12 +1528,19 @@ function ajaxSend(url)
 
 function getGaugeID(id)
 {
-    for (var i = 0, l = document.gauges.length; i < l; i++) {
+	for (var i = 0, l = document.gauges.length; i < l; i++) {
         var g = document.gauges[i];
         if (g.options.renderTo == id) {
             return i;
         }
     }
+    /*
+    for (var i = 0, l = json.analog.length; i < l; i++) {
+        if (json.analog[i].serial == id || json.analog[i].cansub == id) {
+            return json.analog[i].index;
+        }
+    }
+    */
 };
 
 function setColorAlert(id, color)
@@ -1562,38 +1579,97 @@ function setBlinkAlert(i, id)
     }, 1000);
 };
 
-function streamView(stream)
+function regexValue(text,regex,i)
 {
+    //console.log(text);
+    //console.log(regex);
+
+    //var flags = regex.replace(/.*\/([gimy]*)$/, '$1');
+    //var pattern = regex.replace(new RegExp('^/(.*?)/'+flags+'$'), '$1');
+    //var regexp = new RegExp(pattern, flags);
+
+    var regParts = regex.match(/^\/(.*?)\/([gim]*)$/);
+    if (regParts) {
+        // the parsed pattern had delimiters and modifiers. handle them. 
+        var regexp = new RegExp(regParts[1], regParts[2]);
+    } else {
+        // we got pattern string without delimiters
+        var regexp = new RegExp(regex);
+    }
+
+  	var m = text.match(regexp); ///\d{1,}/g
+    
+    //console.log(m);
+    if (m == null)
+        return 0;
+
+    var value = 0;
+	if(m.length == 1) {
+		value = m[0];
+	}else if(m.length > 1) {
+		value = m[i];
+	}
+	return value;
+};
+
+function canbusAjax(parameters)
+{
+	if(parameters.length == 0)
+		return;
+
+    if(json.stream == "stream") {
+        canbusAjaxStream("can/stream?canid=" + parameters.join(','), parameters, 2000);
+    }else{
+        canbusAjaxStream("can/read?canid=" + parameters.join(','), parameters, 2000);
+    }
+};
+
+function serialAjax(parameters)
+{
+	if(parameters.length == 0)
+		return;
+
+	if(json.stream == "stream") {
+		serialAjaxStream("serial.php?stream=" + parameters.join(',') + "&loop=4&delay=640", parameters, 640); //sends TX command then reads RX stream
+	}else if(json.stream == "get") {
+		serialAjaxStream("serial.php?get=" + parameters.join(','), parameters, 2000); //sends TX command then reads RX once
+	}else{
+		serialAjaxStream("serial.php?read=" + parameters.join(','), parameters, 2000); //reads incoming serial RX
+	}
+};
+
+function canbusAjaxStream(url, items, delay)
+{
+
+};
+
+function serialAjaxStream(url, items, delay)
+{
+	//console.log(url);
+
     //TODO: Detect idle mode and slow down stream
 
-    clearTimeout(streamAnalogTimer);
-
-    console.log("serial.php?" + stream);
-
-    if(stream.length == 0)
-        return;
+    clearTimeout(serialAjaxTimer);
 
     streamHttpRequest = new XMLHttpRequest();
-    streamHttpRequest.items = stream.split(",");
-    streamHttpRequest.i = 0;
-    streamHttpRequest.last = (streamHttpRequest.items.length - 1);
-    streamHttpRequest.gaugeid = [stream.length];
-    streamHttpRequest.delay = 640;
+    streamHttpRequest.id = [url.length];
+    streamHttpRequest.items = items;
+    streamHttpRequest.delay = delay;
     streamHttpRequest.timeoutCount = 0;
 
-    for (var i = 0; i < stream.length; i++)
+    for (var i = 0; i < items.length; i++)
     {
-        streamHttpRequest.gaugeid[i] = getGaugeID(streamHttpRequest.items[i]);
-        //console.log("gauge is search for " + streamHttpRequest.items[i] + " = " + streamHttpRequest.gaugeid[i]);
+        streamHttpRequest.id[i] = getGaugeID(items[i]);
     }
 
 	streamHttpRequest.onreadystatechange = function()
 	{
         //console.log("State change: "+ streamHttpRequest.readyState);
+        //console.log(streamHttpRequest);
 
-        if(streamHttpRequest.readyState == 3) {
+        if(this.readyState == 3) {
 
-            var newData = streamHttpRequest.response.substr(streamHttpRequest.seenBytes);
+            var newData = this.response.substr(this.seenBytes);
             //console.log(newData + "\n-------------");
 
             if (newData.indexOf("Error") != -1) {
@@ -1618,7 +1694,7 @@ function streamView(stream)
                 {
                     //console.log("[" + this.i + ":" + data.length + "] " + this.items[this.i] + ":" + data[d]);
 
-                    if(this.items[this.i] === "udc")
+                    if(this.items[0] === "udc")
                     {
                         //console.log(data[d] + ":" + data[d+1]);
                         var percent = parseInt(data[d]) / parseInt(data[d+1]) * 100;
@@ -1647,11 +1723,11 @@ function streamView(stream)
                             document.gauges[this.gaugeid[this.i]].value = percent;
                         }
 
-                    }else if(this.items[this.i] === "speed") {
+                    }else if(this.items[0] === "speed") {
 
-                        document.gauges[this.gaugeid[this.i]].value = data[d];
+                        document.gauges[this.id[0]].value = data[d];
 
-                    }else if(this.items[this.i] === "din_emcystop" && json.alerts.emergency.show) {
+                    }else if(this.items[0] === "din_emcystop" && json.alerts.emergency.enabled) {
                         
                         if(data[d] === "1.00") {
                             if(blinkAlert[1] === undefined)
@@ -1676,31 +1752,47 @@ function streamView(stream)
                 new SVGInjector().inject(svg);
                 */
 			}
-			streamHttpRequest.seenBytes = streamHttpRequest.responseText.length;
+			this.seenBytes = this.responseText.length;
 
-            //console.log("seenBytes: " + streamHttpRequest.seenBytes);
+            //console.log("seenBytes: " + this.seenBytes);
 
-		} else if (streamHttpRequest.readyState == 4) {
+		} else if (this.readyState == 4) {
 
-            //console.log("Complete");
+            if (this.status === 200) {
 
-            if (streamHttpRequest.status === 200) {
-
-                //console.log(streamHttpRequest.responseText);
+                //console.log(this.responseText);
                 
-                streamAnalogTimer = setTimeout(function() {
-                    streamView(serialStream);
-                }, streamHttpRequest.delay);
-                
+                for (var i = 0, l = this.items.length; i < l; i++)
+                {
+					//REGEX RULES - https://regex101.com
+
+					//ANALOG
+					if(document.gauges[this.id[i]] != undefined)
+					{
+	                	var value = regexValue(this.responseText,document.gauges[this.id[i]].options.regex,i);
+	                	//console.log(this.items[i] + " > " + this.id[i] + " > " + value);
+	                	document.gauges[this.id[i]].value = value;
+	                }
+
+	                //DIGITAL
+	                //var value = regexValue(this.responseText,document.gauges[this.id[i]].options.regex,i);
+					//o.setValue(n.toString());
+                }
+
             } else {
 
-                console.log(streamHttpRequest.status);
-
-                //if (streamHttpRequest.seenBytes) {
-                //    _alert.innerHTML = "Connection Lost";
-                //    _alert.style.display = "block";
-                //}
+                //console.log(this.status);
+                if (this.seenBytes) {
+                    _alert.innerHTML = "Connection Lost";
+                   	_alert.style.display = "block";
+                   	setTimeout(function() {
+                		_alert.style.display = "none";
+            		}, 4000);
+                }
             }
+            serialAjaxTimer = setTimeout(function() {
+                serialAjaxStream(streamHttpRequest.responseURL, streamHttpRequest.items, streamHttpRequest.delay);
+            }, streamHttpRequest.delay);
 		}
 	};
 
@@ -1708,7 +1800,7 @@ function streamView(stream)
         //console.log("Reset PID: " + pid);
         //streamReset(pid);
 
-        console.log("Timed Out");
+        console.log("Timed Out: " + this.timeoutCount);
 
         if(this.timeoutCount > 5)
         {
@@ -1718,8 +1810,8 @@ function streamView(stream)
             _alert.style.display = "block";
 
         }else{
-            streamAnalogTimer = setTimeout(function() {
-                streamView(serialStream);
+            serialAjaxTimer = setTimeout(function() {
+                serialAjaxStream(streamHttpRequest.responseURL, streamHttpRequest.items, streamHttpRequest.delay);
             }, streamHttpRequest.delay);
 
             this.timeoutCount++;
@@ -1727,7 +1819,7 @@ function streamView(stream)
     };
 
     streamHttpRequest.timeout = 10000;
-    streamHttpRequest.open('GET', "serial.php?" + stream + "&loop=4&delay=" + streamHttpRequest.delay, true);
+    streamHttpRequest.open("GET", url, true);
     streamHttpRequest.send();
 };
 

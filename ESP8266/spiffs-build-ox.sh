@@ -16,6 +16,10 @@ if [ ! -f tools/mkspiffs ]; then
     cd ../
 fi
 
+for f in $(find spiffs -type f -name 'index.json'); do
+    rm "$f"
+done
+
 for f in $(find spiffs -type f -name '*.*' ! -name '*.json'); do
     gzip "$f"
     mv "$f.gz" "$f"
