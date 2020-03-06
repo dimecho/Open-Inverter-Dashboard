@@ -15,6 +15,9 @@
 #include <ESPAsyncWebServer.h>
 #include <flash_hal.h>
 #include <StreamString.h>
+#define LED_BUILTIN 2 //GPIO1=Olimex, GPIO2=ESP-12/WeMos(D4)
+
+#define DEBUG false
 
 AsyncWebServer server(80);
 
@@ -50,14 +53,13 @@ static const char serverIndex[] PROGMEM =
 </head>
 <body>
 <form method='POST' action='' enctype='multipart/form-data'>
-   Firmware:<br>
    <input type='file' accept='.bin' name='firmware'>
    <input type='submit' value='Update Firmware'>
 </form>
+<br>
 <form method='POST' action='' enctype='multipart/form-data'>
-   FileSystem:<br>
    <input type='file' accept='.bin' name='filesystem'>
-   <input type='submit' value='Update FileSystem'>
+   <input type='submit' value='Update SPIFFS'>
 </form>
 </body>
 </html>)";
@@ -73,6 +75,7 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 */
 #include <mcp_can.h> //CAN-BUS Shield library by Seeed Studio
 #include <SPI.h>
+//volatile unsigned char Flag_Recv = 0;
 /*
   #define MCP_8MHz_250kBPS_CFG1 (0x40)
   #define MCP_8MHz_250kBPS_CFG2 (0xF1)
@@ -89,6 +92,23 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 */
 #define CAN_INT 2    // Set INT to pin GPIO2 (D4)
 MCP_CAN CAN0(4);      // Set CS to pin GPIO4 (D2)
+
+/*
+  CAN message address
+  0xPPPXXXXSS
+  P = priority;  low value = higher priority;
+      0x00=0
+      0x0F=15
+      0x10=16
+      0x1C=20
+      0x20=32
+      0x90=144
+      0xFF=255;
+  XXXX = PNG, parameter group number, 4 chars / 8 bytes long
+  SS = source address,
+*/
+unsigned long CANmsgId = 0x0F100120;
+unsigned char CANmsg[8];
 //=============================
 
 AESLib aesLib;
@@ -201,16 +221,17 @@ void setup()
   WiFi.setPhyMode((WiFiPhyMode_t)WIFI_PHY_MODE);
   WiFi.setOutputPower(WIFI_PHY_POWER);
 
+  IPAddress ip, gateway, subnet, dns;
+  ip.fromString(NETWORK_IP);
+  subnet.fromString(NETWORK_SUBNET);
+  gateway.fromString(NETWORK_GATEWAY);
+  dns.fromString(NETWORK_DNS);
+
   if (ACCESS_POINT_MODE == 0) {
     //=====================
     //WiFi Access Point Mode
     //=====================
     WiFi.mode(WIFI_AP);
-    IPAddress ip, gateway, subnet, dns;
-    ip.fromString(NETWORK_IP);
-    subnet.fromString(NETWORK_SUBNET);
-    gateway.fromString(NETWORK_GATEWAY);
-    dns.fromString(NETWORK_DNS);
     WiFi.softAPConfig(ip, gateway, subnet);
     WiFi.softAP(ACCESS_POINT_SSID, ACCESS_POINT_PASSWORD, ACCESS_POINT_CHANNEL, ACCESS_POINT_HIDE);
     //Serial.println(WiFi.softAPIP());
@@ -219,16 +240,27 @@ void setup()
     //WiFi Client Mode
     //================
     WiFi.mode(WIFI_STA);
+    if (NETWORK_DHCP == 0) {
+      WiFi.config(ip, dns, gateway, subnet);
+    }
     WiFi.persistent(false);
     WiFi.disconnect(true);
     WiFi.begin(ACCESS_POINT_SSID, ACCESS_POINT_PASSWORD);  //Connect to the WiFi network
     //WiFi.enableAP(0);
     while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-      //Serial.println("Connection Failed! Rebooting...");
+#if DEBUG
+      Serial.println("Connection Failed! Rebooting...");
+#endif
+      //If client mode fails ESP8266 will not be accessible
+      //Set Emergency AP SSID for re-configuration
+      NVRAM_Write(0, "0");
+      NVRAM_Write(3, "_" + String(ACCESS_POINT_SSID));
       delay(5000);
       ESP.restart();
     }
-    //Serial.println(WiFi.localIP());
+#if DEBUG
+    Serial.println(WiFi.localIP());
+#endif
   }
 
   //===============
@@ -239,22 +271,10 @@ void setup()
 
     AsyncResponseStream *response = request->beginResponseStream(text_plain);
     response->addHeader("Cache-Control", "no-cache");
-    response->addHeader("Content-Length", "*");
+    //response->addHeader("Content-Length", "*");
 
-    if (CAN0.checkReceive() == CAN_MSGAVAIL)
-    {
-      unsigned char len = 0;
-      unsigned char rxBuf[8];
-
-      CAN0.readMsgBuf(&len, rxBuf);
-
-      response->printf("%s:", CAN0.getCanId());
-
-      for (byte i = 0; i < len; i++) {
-        response->printf("%s,", rxBuf[i]);
-      }
-      request->send(response);
-    }
+    response->print(CANReceive());
+    request->send(response);
   });
   server.on("/can/write", [](AsyncWebServerRequest * request) {
     unsigned char stmp[8] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -312,7 +332,7 @@ void setup()
   server.on("/nvram", HTTP_POST, [](AsyncWebServerRequest * request) {
 
     String out = "<pre>";
-    uint8_t c, from, to = 0;
+    uint8_t c = 0, from = 0, to = 0;
     uint8_t skip = -1;
 
     if (request->hasParam("WiFiMode")) {
@@ -331,7 +351,9 @@ void setup()
       //Catch and encrypt passwords
       if (request->getParam(c)->name() == "EmailPassword") {
         v = encrypt(string2char(v), aes_iv);
-        //Serial.println(v);
+#if DEBUG
+        Serial.println(v);
+#endif
       }
 
       if (skip == -1 || i < skip) {
@@ -413,7 +435,7 @@ void setup()
       request->send(200, text_plain, com);
 
     } else if (request->hasParam("get")) {
-      String sz =  request->getParam("get")->value();
+      String sz = request->getParam("get")->value();
       String out;
 
       if (sz.indexOf(",") != -1 )
@@ -449,15 +471,15 @@ void setup()
       flushSerial();
 
       Serial.print("get " + request->getParam("stream")->value());
-      Serial.print("\n");
+      Serial.print('\n');
       Serial.readStringUntil('\n'); //consume echo
 
       for (uint16_t i = 0; i < _loop; i++) {
-        String output = "";
+        //String output = "";
         size_t len = 0;
         if (i != 0)
         {
-          Serial.print("!");
+          Serial.print('!');
           Serial.readBytes(b, 1); //consume "!"
         }
         do {
@@ -473,7 +495,7 @@ void setup()
         delay(_delay);
       }
       request->send(response);
-    }else{
+    } else {
       //DEBUG
       //request->send(200, text_plain, "v:8,b:8,n:8,i:8,p:10,ah:10,kwh:10,t:30*");
 
@@ -485,7 +507,7 @@ void setup()
     }
   });
   server.on("/opendbc/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
-    String ext[]={".dbc"};
+    String ext[] = {".dbc"};
     String out = indexJSON("/opendbc", ext);
     request->send(200, text_json, out);
   });
@@ -497,12 +519,12 @@ void setup()
     request->send(response);
   });
   server.on("/views/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
-    String ext[]={".json"};
+    String ext[] = {".json"};
     String out = indexJSON("/views", ext);
     request->send(200, text_json, out);
   });
   server.on("/views/bg/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
-    String ext[]={".jpg",".png"};
+    String ext[] = {".jpg", ".png"};
     String out = indexJSON("/views/bg", ext);
     request->send(200, text_json, out);
   });
@@ -526,10 +548,11 @@ void setup()
 
   //server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
   server.onNotFound([](AsyncWebServerRequest * request) {
-
     //Serial.println((request->method() == HTTP_GET) ? "GET" : "POST");
 
     String file = request->url(); //Serial.println("Request:" + file);
+
+    digitalWrite(LED_BUILTIN, HIGH);
 
     if (SPIFFS.exists(file))
     {
@@ -545,28 +568,107 @@ void setup()
     } else {
       request->send(404, text_plain, "404: Not Found");
     }
+
+    digitalWrite(LED_BUILTIN, LOW);
   });
   server.begin();
 
   //ArduinoOTA.begin();
 
+  pinMode(LED_BUILTIN, OUTPUT);
+
   //====================
   //CAN-Bus
   //====================
+  /*
+    Resources:
+    DIO7  can LED
+    DO10  SPI (SS)
+    DO11  SPI (MOSI)
+    DO12  SPI (MISO)
+    DO13  SPI (SCK)
+    Don't mess with the CAN LED on DIO7 (seeduino).
+
+    CAN bus @ 250 kbps is limited to a sample rate of 100 Hz
+    1000 ms = 1 sec = 1 Hz
+    100 ms = 0.1 sec = 10 Hz
+    10 ms = 0.01 sec = 100 Hz
+  */
+
   if (CAN0.begin(CAN_250KBPS) == CAN_OK)
   {
+#if DEBUG
     Serial.println("MCP2515 Initialized Successfully!");
+#endif
     //CAN0.setMode(MODE_LOOPBACK);
     //CAN0.setMode(MODE_NORMAL);
   } else {
+#if DEBUG
     Serial.println("Error Initializing MCP2515...");
+#endif
+    /*
+      for(int i = 10; i > 0; i--) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(25);
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(25);
+      }
+    */
   }
+
+  /*
+    http://www.savvysolutions.info/savvymicrocontrollersolutions/arduino.php?topic=arduino-seeedstudio-CAN-BUS-shield
+  */
+  //Generally, set the mask to 0xFFFFFFF and then apply filters
+  // init_Mask(unsigned char num, unsigned char ext, unsigned char ulData);
+  //CAN0.init_Mask(0, 1, 0xFFFFFFF);
+  //CAN0.init_Mask(1, 1, 0xFFFFFFF);
+
+  CAN0.init_Mask(0, 1, 0x0);
+  CAN0.init_Mask(1, 1, 0x0);
+
+  // init_Filt(unsigned char num, unsigned char ext, unsigned char ulData);
+  // filter (block) all messages using filter 0
+  //CAN0.init_Filt(0, 1, 0xFFFFFFF);
+  //CAN0.init_Mask(1, 1, 0xFFFFFFF);
+
+  CAN0.init_Filt(0, 1, 0x0);
+
+  //CAN0.init_Filt(2, 1, 0xCF00400);
+  //CAN0.init_Filt(1, 1, 0x18FEEF00);
+
+  //Generally, set the mask to 0xFFFFFFF and then apply filters
+  //to each of the messages you want to allow to pass to the
+  //CAN bus shield.
+  //
+  //Mask 0xFFFFFFF & filter 0xFFFFFFF disables all messages
+  //Mask 0xFFFFFFF & filter 0x0 disables all messages (mask disables filter)
+  //Mask 0x0 & filter 0x0 allows all messages to pass
+  //Mask 0x0 & filter 0xFFFFFFF allows msg 0xCF00400 to be received
+  //Mask 0xFFFFFFF & filter 0xCF00400 allows msg 0xCF00400 to be received
+
+  //attachInterrupt(0, MCP2515_ISR, FALLING); // digital pin 2
 }
+
+/*
+  void MCP2515_ISR() {
+    //  Interrupt Service Routine
+    //  Do not use delay or millis here.
+    //  Serial data received while here may be lost.
+    //  Declare as volatile any variables that you modify
+    //  within this function.
+    Flag_Recv = 1;
+    // stop interrupts so you can process the message
+    noInterrupts();
+  }
+*/
 
 void loop()
 {
   if (restartRequired) {
-    //Serial.println("Restarting ESP");
+#if DEBUG
+    Serial.println("Restarting ESP");
+#endif
     restartRequired = false;
     ESP.restart();
   }
@@ -580,6 +682,177 @@ char* string2char(String command) {
     char *p = const_cast<char*>(command.c_str());
     return p;
   }
+}
+
+StreamString CANReceive()
+{
+  StreamString CANMessage;
+
+  if (CAN0.checkReceive() == CAN_MSGAVAIL)
+  {
+    unsigned char len = 0;
+
+    CAN0.readMsgBuf(&len, CANmsg);
+
+    CANmsgId = CAN0.getCanId();
+
+    //if (CAN0.isExtendedFrame()) {
+    if ((CANmsgId & 0x80000000) == 0x80000000) {
+      CANMessage.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", (CANmsgId & 0x1FFFFFFF), len);
+    } else {
+      CANMessage.printf("Standard ID: 0x%.3lX  DLC: %1d  Data:", CANmsgId, len);
+    }
+
+    //if (CAN0.isRemoteRequest()) {
+    if ((CANmsgId & 0x40000000) == 0x40000000) {
+      CANMessage.print(" REMOTE REQUEST FRAME");
+    } else {
+      for (byte i = 0; i < len; i++) {
+        //CANmsg[i] = ntohl(CANmsg[i]);
+
+        //CANMessage.printf(" %d", CANmsg[i]);
+        CANMessage.printf(" 0x%.2X", CANmsg[i]);
+      }
+    }
+
+    /*
+      if (CANmsgId == 0) { // ignore.  Always receives msg with CANmsgID = 0 the first time.
+
+      }else if((rxId == 0x0CF12507) && (rxBuf[2] > 0))
+      {
+          int msgOffset = 0;
+          float msgFactor = 0.01;
+          float fReturn = getFloatFromCanMsg(0, 8, msgOffset, msgFactor);
+
+      }
+    */
+
+    /*
+      int msgOffset = 0;
+      float msgFactor = 0.01;
+      updateCanMsgFromFloat(myFloatVal, 0, 16, msgOffset, msgFactor);
+      CAN0.sendMsgBuf(CANmsgId, 1, 8, CANmsg);
+    */
+  }
+  return CANMessage;
+}
+
+/*
+  http://www.savvysolutions.info/savvymicrocontrollersolutions/arduino.php?article=adafruit-ultimate-gps-shield-seeedstudio-can-bus-shield
+*/
+//****************************************************************
+
+// These functions are written around the concept of using at
+// least two bytes to represent a float or integer value.
+// This allows you to send up to four separate float or integer
+// values within a CAN message.
+
+float getFloatFromCanMsg(int startBit, int msgLen, int offset, float factor) {
+  // Read the data from msg[8] within CANmsg[]
+  // convert it with the passed parameters, and return a float value.
+  // Assumes msgLen = 16
+  byte msb;
+  byte lsb;
+  switch (startBit) {
+    case 0:
+      msb = CANmsg[0];
+      lsb = CANmsg[1];
+      break;
+    case 16:
+      msb = CANmsg[2];
+      lsb = CANmsg[3];
+      break;
+    case 32:
+      msb = CANmsg[4];
+      lsb = CANmsg[5];
+      break;
+    case 48:
+      msb = CANmsg[6];
+      lsb = CANmsg[7];
+      break;
+  }
+  int myInt = (lsb << 8) | msb;
+#if DEBUG
+  Serial.print("getFloatFromCanMsg myInt = ");
+  Serial.println(myInt);
+#endif
+  // float CANbusIntToFloat(unsigned int myInt, int offset, float factor) {
+  float myFloat = CANbusIntToFloat(myInt, offset, factor);
+  return myFloat;
+}
+
+unsigned int floatToIntCANbus(float myFloat, int offset, float factor) {
+  // float myFloat = 2128.5;
+  // unsigned int myInt = floatToIntCANbus(myFloat, 0, 0.125);
+  //
+  // Beginning with float of 2128.5, convert to CAN signal
+  // values.
+  // (int val) = ((float val) - offset) / factor;
+  // (int val) = ((2128.5) - 0.0) / 0.125;
+  // (int val) = 17028
+
+  // Common offset & factor values for msgLen = 16 (two bytes):
+  // Temperature in C:  offset=-273; factor=0.03125
+  // Percent (0 to 100%):  offset=-125; factor=1
+  // speed (0 to 5000 rpm):  offset=0; factor=0.125
+  // torque (Nm):  offset=0; factor=1
+  // mass flow (kg/h):  offset=0; factor=0.2
+  // pressure (kPa):  offset=0; factor=4;
+  // Boolean (0/1):  offset=0; factor=1;
+
+  myFloat = myFloat - (float)offset;
+  myFloat = myFloat / factor;
+  unsigned int myInt = (unsigned int) myFloat;
+  return myInt;
+}
+
+void updateCanMsgFromFloat(float floatVal, int startBit, int msgLen, int offset, float factor) {
+  // Update msg[8] within CANmsg[] with the passed parameters
+  // Assumes msgLen = 16;
+  // unsigned int floatToIntCANbus(float myFloat, int offset, float factor) {
+  unsigned int myInt = floatToIntCANbus(floatVal, offset, factor);
+  byte msb = getMsbFromInt(myInt);
+  byte lsb = getLsbFromInt(myInt);
+  switch (startBit) {
+    case 0:
+      CANmsg[0] = msb;
+      CANmsg[1] = lsb;
+      break;
+    case 16:
+      CANmsg[2] = msb;
+      CANmsg[3] = lsb;
+      break;
+    case 32:
+      CANmsg[4] = msb;
+      CANmsg[5] = lsb;
+      break;
+    case 48:
+      CANmsg[6] = msb;
+      CANmsg[7] = lsb;
+      break;
+  }
+}
+
+float CANbusIntToFloat(unsigned int myInt, int offset, float factor) {
+  // value in decimal = (CAN DEC value) * factor + offset
+  // 17500 * 0.125 + 0 = 2187.5 rpm
+
+  float myFloat = (float) myInt * factor + (float) offset;
+  return myFloat;
+}
+
+byte getMsbFromInt(int myInt) {
+  // int myInt = 17028;
+  // byte msb = getMsbFromInt(myInt);
+  byte msb = myInt & 0xff;
+  return msb;
+}
+
+byte getLsbFromInt(int myInt) {
+  // int myInt = 17028;
+  // byte lsb = getLsbFromInt(myInt);
+  byte lsb = (myInt >> 8) & 0xff;
+  return lsb;
 }
 
 //=============
@@ -632,13 +905,13 @@ String indexJSON(String dir, String ext[])
 
   Dir files = SPIFFS.openDir(dir);
   while (files.next()) {
-    for (int i=0; i<sizeof(ext); i++) {
-        if (files.fileName().endsWith(ext[i])) {
-          out += "\t\t\"" + files.fileName() + "\",\n";
-        }
+    for (int i = 0; i < sizeof(ext); i++) {
+      if (files.fileName().endsWith(ext[i])) {
+        out += "\t\t\"" + files.fileName() + "\",\n";
+      }
     }
   }
-  
+
   out = out.substring(0, (out.length() - 2));
   out += "\t]\n}";
 
@@ -675,15 +948,19 @@ void WebUpload(AsyncWebServerRequest *request, String filename, size_t index, ui
       //if (request->hasParam("filesystem")) {
       //SPIFFS.format();
       size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
-      //Serial.printf("Free SPIFFS Space: %u\n", fsSize);
-      //Serial.printf("SPIFFS Flash Offset: %u\n", U_FS);
+#if DEBUG
+      Serial.printf("Free SPIFFS Space: %u\n", fsSize);
+      Serial.printf("SPIFFS Flash Offset: %u\n", U_FS);
+#endif
       close_all_fs();
       if (!Update.begin(fsSize, U_FS)) { //start with max available size
         Update.printError(Serial);
       }
     } else {
       uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000; //calculate sketch space required for the update
-      //Serial.printf("Free Scketch Space: %u\n", maxSketchSpace);
+#if DEBUG
+      Serial.printf("Free Scketch Space: %u\n", maxSketchSpace);
+#endif
       if (!Update.begin(maxSketchSpace, U_FLASH)) { //start with max available size
         Update.printError(Serial);
       }
@@ -704,11 +981,18 @@ void WebUpload(AsyncWebServerRequest *request, String filename, size_t index, ui
 
 void SnapshotUpload(AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
-  if (!index) {
-    SPIFFS.remove("/views/" + filename);
+  String uploadPath = filename;
+  if (filename.endsWith(".json")) {
+    uploadPath = "/views/" + filename;
+  } if (filename.endsWith(".dbc")) {
+    uploadPath = "/opendbc/" + filename;
   }
 
-  File fsUpload = SPIFFS.open("/views/" + filename, "a");
+  if (!index) {
+    SPIFFS.remove(uploadPath);
+  }
+
+  File fsUpload = SPIFFS.open(uploadPath, "a");
   fsUpload.write(data, len);
   fsUpload.close();
 }

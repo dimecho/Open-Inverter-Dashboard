@@ -8,13 +8,13 @@ var dashboardAnalog = [];
 var dashboardDigital = [];
 var adjustHeight;
 
-var serialRX = []; //holds required UART requests
+var SerialRX = []; //holds required UART requests
 var CANBusRX = []; //holds required CAN requests
-var streamHttpRequest;
-var serialAjaxTimer;
-var streamDigitalTimer;
-
 var formTimer;
+var httpTimer;
+var httpRequest;
+var httpArrayTimer = [];
+var httpArrayRequest = [];
 
 var _alert;
 var iconic;
@@ -930,12 +930,16 @@ function buildView(view)
 
             for (var i = 0; i < dashboardDigital.length; i++)
             {
-                //var td = document.getElementById("canvasDigitalIndex" + i);
-                //if (!(td instanceof HTMLCanvasElement)) {
-                    var td = document.createElement("td");
-                    td.id = "canvasDigitalIndex" + dashboardDigital[i].index;
-                    tr.appendChild(td);
-                //}
+                if(i == 3 || i == 6) {
+                    side[0].appendChild(table);
+                    var table = document.createElement("table");
+                    var tr = document.createElement("tr");
+                    table.appendChild(tr);
+                }
+
+                var td = document.createElement("td");
+                td.id = "canvasDigitalIndex" + dashboardDigital[i].index;
+                tr.appendChild(td);
             }
             side[0].appendChild(table);
         }
@@ -944,9 +948,17 @@ function buildView(view)
 
             _alert.style.display = "none";
 
-            if(streamHttpRequest != undefined)
-                streamHttpRequest.abort();
-            clearTimeout(serialAjaxTimer);
+            if(httpRequest != undefined)
+                httpRequest.abort();
+            for (var i = 0, l = httpArrayRequest.length; i < l; i++) {
+                if(httpArrayRequest[i] != undefined)
+                    httpArrayRequest[i].abort();
+            }
+
+            clearTimeout(httpTimer);
+            for (var i = 0, l = httpArrayTimer.length; i < l; i++) {
+                clearTimeout(httpArrayTimer[i]);
+            }
 
             buildView("back");
             renderView("back");
@@ -1030,7 +1042,7 @@ function buildView(view)
     side[0].appendChild(table);
 };
 
-function renderViewBuild(g)
+function renderViewBuild(g, odbc)
 {
 	//var front = document.getElementsByClassName("front");
 
@@ -1048,41 +1060,39 @@ function renderViewBuild(g)
         {
             //console.log(gauge[i].renderTo);
             if(g[i].serial != "")
-            	serialRX.push(g[i].serial);
+            	SerialRX.push(g[i].serial);
 
             if(g[i].canbus != "")
             	CANBusRX.push(g[i].canbus);
 
             if(g[i].canbus != "") {
-                if(g[i].opendbc != "") {
-                    ajaxReceive("opendbc/" + g[i].opendbc, function(data)
+                if(odbc != "") {
+                    var canbus = g[i].canbus;
+                    var split = odbc.split('\n');
+                    for (x = 0; x < split.length; x++)
                     {
-                        var split = data.split("\n");
-                        for (i = 0; i < split.length; i++) {
-                            //console.log(split[i]);
-                            if(split[i].indexOf(g[i].canbus) != -1) {
-
-                                //Find CANId by looping back
-                                for (id = i; id >0; id--) {
-                                    if(split[id].indexOf("BO_") != -1) {
-                                        var v = split[id].split(" ");
-                                        console.log("CANId:" + v[1]);
-                                        break;
-                                    }
+                        if(split[x].indexOf(g[i].canbus) != -1)
+                        {
+                            //Find CANId by looping back
+                            for (id = x; id >0; id--) {
+                                if(split[id].indexOf("BO_") != -1) {
+                                    var v = split[id].split(" ");
+                                    console.log("CANId:" + v[1]);
+                                    break;
                                 }
-                                //Find CANBit
-                                var s = split[i].split(":");
-                                var v = s[1].split(" ");
-                                console.log("CANBit:" + v[1]);
-
-                                CANBusRead.push(g[i].canbus);
-                                return;
                             }
+                            //Find CANBit
+                            var s = split[x].split(':');
+                            var v = s[1].split(' ');
+                            console.log("CANBit:" + v[1]);
+
+                            canbus = g[i].canbus;
+                            break;
                         }
-                        CANBusRead.push(g[i].canbus);
-                    });
+                    }
+                    CANBusRX.push(canbus);
                 }else{
-                    CANBusRead.push(g[i].canbus);
+                    CANBusRX.push(g[i].canbus);
                 }
             }
             //console.log(JSON.stringify(g[i],null, 2));
@@ -1112,8 +1122,23 @@ function renderView(view)
 
     if(view === "front")
     {
-        renderViewBuild(json.analog);
-        renderViewBuild(json.digital);
+        if(json.opendbc != "") {
+            var xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function()
+            {
+                if (this.readyState === XMLHttpRequest.DONE) {
+                    if (this.status === 200) {
+                        renderViewBuild(json.analog,this.responseText);
+                        renderViewBuild(json.digital,this.responseText);
+                    }
+                }
+            };
+            xhr.open("GET", json.opendbc, true);
+            xhr.send();
+        }else{
+            renderViewBuild(json.analog,"");
+            renderViewBuild(json.digital,"");
+        }
 
         /*
         for (i in json.sounds)
@@ -1466,13 +1491,14 @@ function streamInit(serial,canbus)
 {
 	//DEBUG
 	//============
-	//serialAjax(serialRX);
+	//serialAjax(SerialRX);
+    //canbusAjax(CANBusRX);
 	//return;
 	//============
 
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
-        if (this.readyState === 4) {
+        if (this.readyState === XMLHttpRequest.DONE) {
 
             if (this.status === 200) {
 
@@ -1480,7 +1506,7 @@ function streamInit(serial,canbus)
                 var com = this.responseText;
 
                 if(com.indexOf("Serial") != -1) {
-                    serialAjax(serialRX);
+                    serialAjax(SerialRX);
                 }
                 if(com.indexOf("CAN") != -1) {
                     canbusAjax(CANBusRX);
@@ -1512,7 +1538,7 @@ function ajaxSend(url)
 
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
                 console.log(xhr.responseText);
             } else {
@@ -1616,11 +1642,9 @@ function canbusAjax(parameters)
 {
 	if(parameters.length == 0)
 		return;
-
-    if(json.stream == "stream") {
-        canbusAjaxStream("can/stream?canid=" + parameters.join(','), parameters, 2000);
-    }else{
-        canbusAjaxStream("can/read?canid=" + parameters.join(','), parameters, 2000);
+    
+    for (var i = 0, l = parameters.length; i < l; i++) {
+        httpArrayStream("can/read?canid=" + parameters[i], parameters[i], 2000);
     }
 };
 
@@ -1630,44 +1654,90 @@ function serialAjax(parameters)
 		return;
 
 	if(json.stream == "stream") {
-		serialAjaxStream("serial.php?stream=" + parameters.join(',') + "&loop=4&delay=640", parameters, 640); //sends TX command then reads RX stream
+		httpStream("serial.php?stream=" + parameters.join(',') + "&loop=4&delay=640", parameters, 640); //sends TX command then reads RX stream
 	}else if(json.stream == "get") {
-		serialAjaxStream("serial.php?get=" + parameters.join(','), parameters, 2000); //sends TX command then reads RX once
-	}else{
-		serialAjaxStream("serial.php?read=" + parameters.join(','), parameters, 2000); //reads incoming serial RX
+		httpStream("serial.php?get=" + parameters.join(','), parameters, 2000); //sends TX command then reads RX once
+	}else if(json.stream == "array") {
+        for (var i = 0, l = parameters.length; i < l; i++) {
+            httpArrayStream("serial.php?get=" + parameters[i], parameters[i], 2000);
+        }
+    }else{
+		httpStream("serial.php?read=" + parameters.join(','), parameters, 2000); //reads incoming serial RX
 	}
 };
 
-function canbusAjaxStream(url, items, delay)
+function httpArrayStream(i, url, item, delay)
 {
+    clearTimeout(httpArrayTimer[i]);
 
+    httpArrayRequest[i] = new XMLHttpRequest();
+    httpArrayRequest[i].id = getGaugeID(item);
+    httpArrayRequest[i].delay = delay;
+    httpArrayRequest[i].timeoutCount = 0;
+
+    httpArrayRequest[i].onreadystatechange = function()
+    {
+        if (this.readyState === XMLHttpRequest.DONE) {
+
+            if (this.status === 200) {
+
+                console.log(this.responseText);
+            }
+            httpArrayTimer[i] = setTimeout(function() {
+                httpArrayStream(i, httpArrayRequest[i].responseURL, httpArrayRequest[i].items, httpArrayRequest[i].delay);
+            }, httpArrayRequest[i].delay);
+        }
+    };
+
+    httpArrayRequest[i].ontimeout = function () {
+
+        console.log("Timed Out: " + this.timeoutCount);
+
+        if(this.timeoutCount > 5)
+        {
+            this.timeoutCount = 0;
+
+            _alert.innerHTML = "Connection Lost";
+            _alert.style.display = "block";
+
+        }else{
+            httpArrayTimer[i] = setTimeout(function() {
+                httpArrayStream(i, httpArrayRequest[i].responseURL, httpArrayRequest[i].items, httpArrayRequest[i].delay);
+            }, httpArrayRequest[i].delay);
+            this.timeoutCount++;
+        }
+    };
+
+    httpArrayRequest[i].timeout = 10000;
+    httpArrayRequest[i].open("GET", url, true);
+    httpArrayRequest[i].send();
 };
 
-function serialAjaxStream(url, items, delay)
+function httpStream(url, items, delay)
 {
 	//console.log(url);
 
     //TODO: Detect idle mode and slow down stream
 
-    clearTimeout(serialAjaxTimer);
+    clearTimeout(httpTimer);
 
-    streamHttpRequest = new XMLHttpRequest();
-    streamHttpRequest.id = [url.length];
-    streamHttpRequest.items = items;
-    streamHttpRequest.delay = delay;
-    streamHttpRequest.timeoutCount = 0;
+    httpRequest = new XMLHttpRequest();
+    httpRequest.id = [url.length];
+    httpRequest.items = items;
+    httpRequest.delay = delay;
+    httpRequest.timeoutCount = 0;
 
     for (var i = 0; i < items.length; i++)
     {
-        streamHttpRequest.id[i] = getGaugeID(items[i]);
+        httpRequest.id[i] = getGaugeID(items[i]);
     }
 
-	streamHttpRequest.onreadystatechange = function()
+	httpRequest.onreadystatechange = function()
 	{
-        //console.log("State change: "+ streamHttpRequest.readyState);
-        //console.log(streamHttpRequest);
+        //console.log("State change: "+ httpRequest.readyState);
+        //console.log(httpRequest);
 
-        if(this.readyState == 3) {
+        if(this.readyState === XMLHttpRequest.LOADING) {
 
             var newData = this.response.substr(this.seenBytes);
             //console.log(newData + "\n-------------");
@@ -1681,11 +1751,11 @@ function serialAjaxStream(url, items, delay)
                 }
                 _alert.style.display = "block";
 
-                streamHttpRequest.abort();
+                httpRequest.abort();
 
             } else {
 
-                var data = newData.slice(0, -1).split("\n");
+                var data = newData.slice(0, -1).split('\n');
 
                 //console.log(data);
                 //console.log(this.items);
@@ -1756,7 +1826,7 @@ function serialAjaxStream(url, items, delay)
 
             //console.log("seenBytes: " + this.seenBytes);
 
-		} else if (this.readyState == 4) {
+		} else if (this.readyState === XMLHttpRequest.DONE) {
 
             if (this.status === 200) {
 
@@ -1790,13 +1860,13 @@ function serialAjaxStream(url, items, delay)
             		}, 4000);
                 }
             }
-            serialAjaxTimer = setTimeout(function() {
-                serialAjaxStream(streamHttpRequest.responseURL, streamHttpRequest.items, streamHttpRequest.delay);
-            }, streamHttpRequest.delay);
+            httpTimer = setTimeout(function() {
+                httpStream(httpRequest.responseURL, httpRequest.items, httpRequest.delay);
+            }, httpRequest.delay);
 		}
 	};
 
-    streamHttpRequest.ontimeout = function () {
+    httpRequest.ontimeout = function () {
         //console.log("Reset PID: " + pid);
         //streamReset(pid);
 
@@ -1805,22 +1875,20 @@ function serialAjaxStream(url, items, delay)
         if(this.timeoutCount > 5)
         {
             this.timeoutCount = 0;
-
             _alert.innerHTML = "Connection Lost";
             _alert.style.display = "block";
 
         }else{
-            serialAjaxTimer = setTimeout(function() {
-                serialAjaxStream(streamHttpRequest.responseURL, streamHttpRequest.items, streamHttpRequest.delay);
-            }, streamHttpRequest.delay);
-
+            httpTimer = setTimeout(function() {
+                httpStream(httpRequest.responseURL, httpRequest.items, httpRequest.delay);
+            }, httpRequest.delay);
             this.timeoutCount++;
         }
     };
 
-    streamHttpRequest.timeout = 10000;
-    streamHttpRequest.open("GET", url, true);
-    streamHttpRequest.send();
+    httpRequest.timeout = 10000;
+    httpRequest.open("GET", url, true);
+    httpRequest.send();
 };
 
 function ajaxReceive(path, success, error)
@@ -1835,7 +1903,7 @@ function ajaxReceive(path, success, error)
         if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
                 if (success)
-					if(Object.keys(xhr.responseText).length > 0) {
+					if(Object.keys(xhr.responseText).length > 0) { 
 						success(JSON.parse(xhr.responseText));
 					}else{
 						success(xhr.responseText);
@@ -1914,14 +1982,6 @@ function getHeight() {
     //document.documentElement.offsetHeight,
     document.documentElement.clientHeight
   );
-};
-
-function updateOdometer(n) {
-    n += 0.01
-    odometer.setValue(n.toString());
-    streamDigitalTimer = setTimeout(function(){
-        updateOdometer(n);
-    }, 200);
 };
 
 function calculateDistance(lat1, lon1, lat2, lon2) {

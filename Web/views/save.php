@@ -3,7 +3,8 @@
 	if(isset($_POST["view"]) && isset($_POST["json"]))
 	{
         $json = json_decode($_POST["json"]);
-	    $file = fopen($_POST["view"],"w") or die("Cannot open file: " .$_POST["view"]);
+        $path = str_replace("/views/", "", $_POST["view"]);
+	    $file = fopen($path,"w") or die("Cannot open file: " .$path);
         fwrite($file,json_encode($json, JSON_PRETTY_PRINT));
         fclose($file);
 	}

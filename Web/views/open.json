@@ -5,7 +5,7 @@
     "canbus": 250,
     "timeout": 2000,
     "stream": "",
-    "opendbc": "EV-can_ZE0.dbc",
+    "opendbc": "/opendbc/EV-can_ZE0.dbc",
     "analog": [
         {
             "index": 0,
