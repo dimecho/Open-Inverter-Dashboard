@@ -17,7 +17,7 @@
 #include <StreamString.h>
 #define LED_BUILTIN 2 //GPIO1=Olimex, GPIO2=ESP-12/WeMos(D4)
 
-#define DEBUG false
+#define DEBUG true
 
 AsyncWebServer server(80);
 
@@ -76,11 +76,11 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
   https://github.com/Metaln00b/NodeMCU-BlackBox
 */
 /*
- * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    The NodeMCU is not officially 5V tolerant.
- * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
- * Connect TJA1050-Chip separately to 5V of external power, 
- * because the TJA1050-Chip can not run with 3V3.
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   Connect TJA1050-Chip separately to 5V of external power,
+   because the TJA1050-Chip can not run with 3V3.
 */
 #include <mcp_can.h>
 #include <SPI.h>
@@ -102,7 +102,7 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 
 /* WeMos D1 Pins for MCP2515: CS=D2, INT=D4, SCK=D5, SO=D6, SI=D7 */
 
-#define CAN0_INT 2   // Set INT to pin GPIO2 (D4)
+//#define CAN0_INT 2   // Set INT to pin GPIO2 (D4)
 MCP_CAN CAN0(4);     // Set CS to pin GPIO4 (D2) or GPIO15 (D8)
 
 /*
@@ -438,19 +438,47 @@ void setup()
       Serial.begin(request->getParam("serial")->value().toInt(), SERIAL_8N1);
 
       String com = "";
+      /*
+        #define CAN_5KBPS    1
+        #define CAN_10KBPS   2
+        #define CAN_20KBPS   3
+        #define CAN_25KBPS   4
+        #define CAN_31K25BPS 5
+        #define CAN_33KBPS   6
+        #define CAN_40KBPS   7
+        #define CAN_50KBPS   8
+        #define CAN_80KBPS   9
+        #define CAN_83K3BPS  10
+        #define CAN_95KBPS   11
+        #define CAN_100KBPS  12
+        #define CAN_125KBPS  13
+        #define CAN_200KBPS  14
+        #define CAN_250KBPS  15
+        #define CAN_500KBPS  16
+        #define CAN_666kbps  17
+        #define CAN_1000KBPS 18
+      */
+      int canbus_kbps_init = request->getParam("canbus")->value().toInt();
+      int canbus_kbps[] = {0, 5, 10, 20, 25, 31, 33, 40, 50, 80, 83, 95, 100, 125, 200, 250, 500, 666, 1000};
 
-      //CAN0.begin(request->getParam("canbus")->value().toInt()) == CAN_OK) // SeeedStudio Library
-      //CAN0.begin(MCP_ANY, request->getParam("canbus")->value().toInt(), MCP_8MHZ) == CAN_OK) // Coryjfowler Library
-      if (CAN0.checkReceive() == CAN_MSGAVAIL)
+      for (int i = 1; i <= 18; i++) {
+        if (canbus_kbps[i] == canbus_kbps_init) {
+          canbus_kbps_init = canbus_kbps[i];
+          break;
+        }
+      }
+
+      if (CAN0.begin(canbus_kbps_init) == CAN_OK) // SeeedStudio Library
+      //if (CAN0.begin(MCP_ANY, canbus_kbps_init, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
       {
         com  += "CAN";
       }
       if (Serial) {
-        com  += "Serial";
-      }
-      request->send(200, text_plain, com);
+      com  += "Serial";
+    }
+    request->send(200, text_plain, com);
 
-    } else if (request->hasParam("get")) {
+  } else if (request->hasParam("get")) {
       String sz = request->getParam("get")->value();
       String out;
 
@@ -603,19 +631,19 @@ void setup()
     10 ms = 0.01 sec = 100 Hz
   */
 
-  //if (CAN0.begin(CAN_250KBPS) == CAN_OK) // SeeedStudio Library
-  if (CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
+  if (CAN0.begin(CAN_250KBPS) == CAN_OK) // SeeedStudio Library
+    //if (CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
   {
 #if DEBUG
     Serial.println("MCP2515 Initialized Successfully!");
 #endif
     // SeeedStudio Library
-    //CAN0.setMode(MODE_LOOPBACK);
     //CAN0.setMode(MODE_NORMAL);
+    CAN0.setMode(MODE_LISTENONLY);
     //-------------------
     // Coryjfowler Library
     //CAN0.setMode(MCP_NORMAL);
-    CAN0.setMode(MCP_LISTENONLY); 
+    //CAN0.setMode(MCP_LISTENONLY);
   } else {
 #if DEBUG
     Serial.println("Error Initializing MCP2515...");
@@ -699,24 +727,24 @@ StreamString CANReceive()
     //===================
     // SeeedStudio Library
     //===================
-    //CAN0.readMsgBuf(&len, CANmsg);
-    //CANmsgId=CAN0.getCanId(); //Must be called AFTER CAN0.readMsgBuff, otherwise will get the last CAN ID, not the current value.
+    CAN0.readMsgBuf(&len, CANmsg);
+    CANmsgId = CAN0.getCanId(); //Must be called AFTER CAN0.readMsgBuff, otherwise will get the last CAN ID, not the current value.
 
     //===================
     // Coryjfowler Library
     //===================
-    CAN0.readMsgBuf(&CANmsgId, &len, CANmsg);
+    //CAN0.readMsgBuf(&CANmsgId, &len, CANmsg);
 
-    //if (CAN0.isExtendedFrame()) // SeeedStudio Library
-    if ((CANmsgId & 0x80000000) == 0x80000000) // Coryjfowler Library
+    if (CAN0.isExtendedFrame()) // SeeedStudio Library
+      //if ((CANmsgId & 0x80000000) == 0x80000000) // Coryjfowler Library
     {
       CANMessage.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", (CANmsgId & 0x1FFFFFFF), len);
     } else {
       CANMessage.printf("Standard ID: 0x%.3lX  DLC: %1d  Data:", CANmsgId, len);
     }
 
-    //if (CAN0.isRemoteRequest()) // SeeedStudio Library
-    if ((CANmsgId & 0x40000000) == 0x40000000) // Coryjfowler Library
+    if (CAN0.isRemoteRequest()) // SeeedStudio Library
+      //if ((CANmsgId & 0x40000000) == 0x40000000) // Coryjfowler Library
     {
       CANMessage.print(" REMOTE REQUEST FRAME");
     } else {
