@@ -68,15 +68,24 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 //====================
 //CAN-Bus
 //====================
-/* http://scottsnowden.co.uk/esp8266-mcp2515-can-bus-to-wifi-gateway/
-   http://www.canhack.org/board/viewtopic.php?f=1&t=1041
-   http://forum.arduino.cc/index.php?topic=152145.0
-   https://github.com/Metaln00b/NodeMCU-BlackBox
-*/
-#include <mcp_can.h> //CAN-BUS Shield library by Seeed Studio
-#include <SPI.h>
-//volatile unsigned char Flag_Recv = 0;
 /*
+  https://github.com/coryjfowler/MCP_CAN_lib
+  http://scottsnowden.co.uk/esp8266-mcp2515-can-bus-to-wifi-gateway/
+  http://www.canhack.org/board/viewtopic.php?f=1&t=1041
+  http://forum.arduino.cc/index.php?topic=152145.0
+  https://github.com/Metaln00b/NodeMCU-BlackBox
+*/
+/*
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   The NodeMCU is not officially 5V tolerant.
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ * Connect TJA1050-Chip separately to 5V of external power, 
+ * because the TJA1050-Chip can not run with 3V3.
+*/
+#include <mcp_can.h>
+#include <SPI.h>
+/*
+  //https://www.kvaser.com/support/calculators/bit-timing-calculator/
   #define MCP_8MHz_250kBPS_CFG1 (0x40)
   #define MCP_8MHz_250kBPS_CFG2 (0xF1)
   #define MCP_8MHz_250kBPS_CFG3 (0x85)
@@ -90,12 +99,14 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 
   The pins would change to: MOSI=SD1,MISO=SD0,SCLK=CLK,HWCS=GPIO0
 */
-#define CAN_INT 2    // Set INT to pin GPIO2 (D4)
-MCP_CAN CAN0(4);      // Set CS to pin GPIO4 (D2)
+
+/* WeMos D1 Pins for MCP2515: CS=D2, INT=D4, SCK=D5, SO=D6, SI=D7 */
+
+#define CAN0_INT 2   // Set INT to pin GPIO2 (D4)
+MCP_CAN CAN0(4);     // Set CS to pin GPIO4 (D2) or GPIO15 (D8)
 
 /*
-  CAN message address
-  0xPPPXXXXSS
+  CAN message address: 0xPPPXXXXSS
   P = priority;  low value = higher priority;
       0x00=0
       0x0F=15
@@ -107,8 +118,9 @@ MCP_CAN CAN0(4);      // Set CS to pin GPIO4 (D2)
   XXXX = PNG, parameter group number, 4 chars / 8 bytes long
   SS = source address,
 */
-unsigned long CANmsgId = 0x0F100120;
+long unsigned int CANmsgId;
 unsigned char CANmsg[8];
+//volatile unsigned char Flag_Recv = 0;
 //=============================
 
 AESLib aesLib;
@@ -426,7 +438,11 @@ void setup()
       Serial.begin(request->getParam("serial")->value().toInt(), SERIAL_8N1);
 
       String com = "";
-      if (CAN0.checkReceive() == CAN_MSGAVAIL) { //if (CAN0.begin(request->getParam("canbus")->value().toInt()) == CAN_OK)
+
+      //CAN0.begin(request->getParam("canbus")->value().toInt()) == CAN_OK) // SeeedStudio Library
+      //CAN0.begin(MCP_ANY, request->getParam("canbus")->value().toInt(), MCP_8MHZ) == CAN_OK) // Coryjfowler Library
+      if (CAN0.checkReceive() == CAN_MSGAVAIL)
+      {
         com  += "CAN";
       }
       if (Serial) {
@@ -581,54 +597,44 @@ void setup()
   //CAN-Bus
   //====================
   /*
-    Resources:
-    DIO7  can LED
-    DO10  SPI (SS)
-    DO11  SPI (MOSI)
-    DO12  SPI (MISO)
-    DO13  SPI (SCK)
-    Don't mess with the CAN LED on DIO7 (seeduino).
-
     CAN bus @ 250 kbps is limited to a sample rate of 100 Hz
     1000 ms = 1 sec = 1 Hz
     100 ms = 0.1 sec = 10 Hz
     10 ms = 0.01 sec = 100 Hz
   */
 
-  if (CAN0.begin(CAN_250KBPS) == CAN_OK)
+  //if (CAN0.begin(CAN_250KBPS) == CAN_OK) // SeeedStudio Library
+  if (CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
   {
 #if DEBUG
     Serial.println("MCP2515 Initialized Successfully!");
 #endif
+    // SeeedStudio Library
     //CAN0.setMode(MODE_LOOPBACK);
     //CAN0.setMode(MODE_NORMAL);
+    //-------------------
+    // Coryjfowler Library
+    //CAN0.setMode(MCP_NORMAL);
+    CAN0.setMode(MCP_LISTENONLY); 
   } else {
 #if DEBUG
     Serial.println("Error Initializing MCP2515...");
 #endif
-    /*
-      for(int i = 10; i > 0; i--) {
-      digitalWrite(LED_BUILTIN, HIGH);
-      delay(25);
-      digitalWrite(LED_BUILTIN, LOW);
-      delay(25);
-      }
-    */
   }
 
   /*
     http://www.savvysolutions.info/savvymicrocontrollersolutions/arduino.php?topic=arduino-seeedstudio-CAN-BUS-shield
   */
   //Generally, set the mask to 0xFFFFFFF and then apply filters
-  // init_Mask(unsigned char num, unsigned char ext, unsigned char ulData);
+  //init_Mask(unsigned char num, unsigned char ext, unsigned char ulData);
   //CAN0.init_Mask(0, 1, 0xFFFFFFF);
   //CAN0.init_Mask(1, 1, 0xFFFFFFF);
 
   CAN0.init_Mask(0, 1, 0x0);
   CAN0.init_Mask(1, 1, 0x0);
 
-  // init_Filt(unsigned char num, unsigned char ext, unsigned char ulData);
-  // filter (block) all messages using filter 0
+  //init_Filt(unsigned char num, unsigned char ext, unsigned char ulData);
+  //filter (block) all messages using filter 0
   //CAN0.init_Filt(0, 1, 0xFFFFFFF);
   //CAN0.init_Mask(1, 1, 0xFFFFFFF);
 
@@ -638,8 +644,7 @@ void setup()
   //CAN0.init_Filt(1, 1, 0x18FEEF00);
 
   //Generally, set the mask to 0xFFFFFFF and then apply filters
-  //to each of the messages you want to allow to pass to the
-  //CAN bus shield.
+  //to each of the messages you want to allow to pass to the CAN bus shield.
   //
   //Mask 0xFFFFFFF & filter 0xFFFFFFF disables all messages
   //Mask 0xFFFFFFF & filter 0x0 disables all messages (mask disables filter)
@@ -647,19 +652,18 @@ void setup()
   //Mask 0x0 & filter 0xFFFFFFF allows msg 0xCF00400 to be received
   //Mask 0xFFFFFFF & filter 0xCF00400 allows msg 0xCF00400 to be received
 
-  //attachInterrupt(0, MCP2515_ISR, FALLING); // digital pin 2
+  //attachInterrupt(0, MCP2515_ISR, FALLING);
+  //pinMode(CAN0_INT, INPUT);
 }
 
+//Interrupt Service Routine
 /*
   void MCP2515_ISR() {
-    //  Interrupt Service Routine
-    //  Do not use delay or millis here.
-    //  Serial data received while here may be lost.
-    //  Declare as volatile any variables that you modify
-    //  within this function.
-    Flag_Recv = 1;
-    // stop interrupts so you can process the message
-    noInterrupts();
+  //Do not use delay or millis here. Serial data received while here may be lost.
+  //Declare as volatile any variables that you modify within this function.
+  Flag_Recv = 1;
+  //stop interrupts so you can process the message
+  noInterrupts();
   }
 */
 
@@ -692,25 +696,37 @@ StreamString CANReceive()
   {
     unsigned char len = 0;
 
-    CAN0.readMsgBuf(&len, CANmsg);
+    //===================
+    // SeeedStudio Library
+    //===================
+    //CAN0.readMsgBuf(&len, CANmsg);
+    //CANmsgId=CAN0.getCanId(); //Must be called AFTER CAN0.readMsgBuff, otherwise will get the last CAN ID, not the current value.
 
-    CANmsgId = CAN0.getCanId();
+    //===================
+    // Coryjfowler Library
+    //===================
+    CAN0.readMsgBuf(&CANmsgId, &len, CANmsg);
 
-    //if (CAN0.isExtendedFrame()) {
-    if ((CANmsgId & 0x80000000) == 0x80000000) {
+    //if (CAN0.isExtendedFrame()) // SeeedStudio Library
+    if ((CANmsgId & 0x80000000) == 0x80000000) // Coryjfowler Library
+    {
       CANMessage.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", (CANmsgId & 0x1FFFFFFF), len);
     } else {
       CANMessage.printf("Standard ID: 0x%.3lX  DLC: %1d  Data:", CANmsgId, len);
     }
 
-    //if (CAN0.isRemoteRequest()) {
-    if ((CANmsgId & 0x40000000) == 0x40000000) {
+    //if (CAN0.isRemoteRequest()) // SeeedStudio Library
+    if ((CANmsgId & 0x40000000) == 0x40000000) // Coryjfowler Library
+    {
       CANMessage.print(" REMOTE REQUEST FRAME");
     } else {
       for (byte i = 0; i < len; i++) {
         //CANmsg[i] = ntohl(CANmsg[i]);
 
         //CANMessage.printf(" %d", CANmsg[i]);
+#ifdef DEBUG
+        Serial.printf(" 0x%.2X", CANmsg[i]);
+#endif
         CANMessage.printf(" 0x%.2X", CANmsg[i]);
       }
     }

@@ -11,6 +11,8 @@ Web-interface dashboard for [Open Inverter Project](https://openinverter.org)
 
 * CAN to ESP8266 requires MCP2515
 
+![MCP2515](ESP8266/diagrams/esp8266-mcp2515.png?raw=true)
+
 ![Screenshot](Web/img/screenshot.png?raw=true)
 
 ## Preview
