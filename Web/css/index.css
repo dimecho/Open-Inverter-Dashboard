@@ -19,27 +19,25 @@ table {
   table-layout: fixed;
 }
 
-#alert {
+.alert {
   position: absolute;
   left: 0px;
   top: 0px;
   width:100%;
   padding: 20px;
-  background-color: #f44336;
-  color: white;
   opacity: 0.8;
   transition: opacity 0.6s;
   margin-bottom: 15px;
-	cursor: pointer;
   font-size: 200%;
   text-align: center;
   z-index: 99;
 	display: none;
 }
 
-.alert.success {background-color: #4CAF50;}
-.alert.info {background-color: #2196F3;}
-.alert.warning {background-color: #ff9800;}
+.alert-danger {background-color: #F44336; color: white;}
+.alert-success {background-color: #4CAF50; color: white;}
+.alert-info {background-color: #2196F3; color: white;}
+.alert-warning {background-color: #ff9800; color: white;}
 
 .iconic {
   margin-left: 10px;

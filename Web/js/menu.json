@@ -3,12 +3,12 @@
         {
             "icon": "export",
             "title": "Export View",
-            "href": "snapshotExport()"
+            "href": "fileExport()"
         },
         {
             "icon": "import",
             "title": "Import View",
-            "href": "snapshotImport()"
+            "href": "fileImport()"
         },
     	{
             "icon": "view",

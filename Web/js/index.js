@@ -16,13 +16,12 @@ var httpRequest;
 var httpArrayTimer = [];
 var httpArrayRequest = [];
 
-var _alert;
 var iconic;
+var backMenuHeight = 50;
 
 document.addEventListener("DOMContentLoaded", function(event)
 {
     iconic = IconicJS();
-    _alert = document.getElementById("alert");
 
     var safety = getCookie("safetyD");
     if (safety === undefined) {
@@ -156,8 +155,8 @@ function sizeView(view)
             dynamicHeight /= 2;
         }
 
-        if(json.alerts.length > 0)
-            dynamicHeight -= 200;
+        //if(json.alerts.length > 0)
+       //     dynamicHeight -= 200;
 
         for (var i = 0, l = document.gauges.length; i < l; i++) {
 
@@ -184,8 +183,8 @@ function sizeView(view)
         var maxH = [];
         for (var i = 0; i < json.analog.length; i++)
         {
-            var t = document.getElementById("canvasAnalogIndex" + i);
-            console.log("canvasAnalogIndex" + i + " height=" + t.height);
+            var t = document.getElementById("canvasDigitalIndex" + i);
+            console.log("canvasAnalogIndex" + i + " height=" + t.clientHeight);
             maxH.push(t.height);
         }
         dashboardHeight = Math.max.apply(null,maxH);
@@ -208,18 +207,18 @@ function sizeView(view)
 
         if(backAnalogSelected != undefined)
         {
-            backAnalogSelected.parentElement.height = Math.round(getHeight() - backMenu.clientHeight - backAvailable.clientHeight);
+            backAnalogSelected.parentElement.height = Math.round((getHeight() - backMenu.clientHeight - h)/2.5);
 
             var w = dynamicGaugeWidth(dashboardAnalog);
             for (var i = 0; i < dashboardAnalog.length; i++) {
                 var img = document.getElementById("_" + dashboardAnalog[i].renderTo);
-                img.width = w * 0.8; //- backMenu.height;
+                img.width = w * 0.8; // - backMenu.clientHeight;
             }
         }
 
         if(backDigitalSelected != undefined)
         {
-            backDigitalSelected.parentElement.height = Math.round(getHeight() - backMenu.clientHeight - h);
+            backDigitalSelected.parentElement.height = Math.round(getHeight() - backMenu.clientHeight - backAvailable.parentElement.height - backAnalogSelected.parentElement.height - (w * 0.5));
         
             //w = dynamicGaugeWidth(dashboardDigital);
             for (var i = 0; i < dashboardDigital.length; i++) {
@@ -234,7 +233,7 @@ function buildMenu()
 {
     ajaxReceive("js/menu.json", function(data)
     {
-        console.log(data);
+        //console.log(data);
 
         var menu = document.getElementById("backMenu");
         //menu.innerHTML = "";
@@ -832,22 +831,93 @@ function buildAlerts(view)
     var alerts = document.getElementById(view + "Alerts");
     alerts.innerHTML = "";
 
-    if(view === "front")
+    for (var key in json.alerts)
     {
-        var td = buildAlertList(false, adjustHeight - 20);
-        td.colSpan = json.analog.length;
+        //console.log(json.alerts[i].svg);
+        if(json.alerts[key].enabled == true || view == "back")
+        {
+            var td = document.createElement("td");
+            /*
+            if(showAll === false)
+                switch (key) {
+                    case "emergency":
+                    stream += ",din_emcystop";
+                    break;
+                }
+            */
 
-        //fixes flip rotation for svg
-        for (var i = 0, l = td.childNodes.length; i < l; i++)
-            td.childNodes[i].style="";
+            var span = document.createElement("span");
+            var svg = document.createElement("img");
+           
+            svg.dataset.color = json.alerts[key].color;
+            svg.classList.add("iconic");
+            svg.classList.add("svg-grey");
+            svg.style.width = backMenuHeight * 2 + "px";
+            svg.style.height = backMenuHeight * 2 + "px";
+            svg.src = "svg/" + json.alerts[key].icon + ".svg";
+            span.style.position = "relative";
+            //span.style.zIndex = "1";
+            span.id = "alert_" + key;
+            span.appendChild(svg);
+            iconic.inject(svg);
 
-    }else if (view === "back") {
+            if (view === "back")
+            {
+                var x = backMenuHeight;
 
-        var td = buildAlertList(true, adjustHeight /2);
-        td.style.height = adjustHeight*2 + "px";
+                span.onclick = function (e) {
+                    //console.log(this);
+                    //console.log(this.children[1].src);
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    if(this.children[1].src.indexOf("disabled") !== -1)
+                    {
+                        json.alerts[this.id.substr(6)].enabled = true;
+
+                        this.children[1].src = "svg/enabled.svg";
+                        /*
+                        var lightboxBody = document.getElementById("lightboxBody");
+                        var lightboxTitle = document.getElementById("lightboxTitle");
+                       
+                        lightboxBody.innerHTML = "";
+                        lightboxTitle.innerHTML = "";
+
+                        if(this.id =="alert_odometer")
+                        {
+                            var textarea = document.createElement("textarea");
+                            textarea.rows = "20";
+                            textarea.value = JSON.stringify(json.odometer, null, 2);
+                            lightboxBody.appendChild(textarea);
+                            window.location = "#openModal";
+                        }
+                        */
+                    }else{
+                        json.alerts[this.id.substr(6)].enabled = false;
+                        this.children[1].src = "svg/disabled.svg";
+                    }
+
+                    console.log("...set alert '" + this.id.substr(6) + "' " + json.alerts[this.id.substr(6)].enabled);
+                };
+
+                var overlay = document.createElement("img");
+                overlay.classList.add("iconic");
+
+                if(json.alerts[key].enabled == true)
+                {
+                    overlay.src = "svg/enabled.svg";
+                }else{
+                    overlay.src = "svg/disabled.svg";
+                }
+                overlay.style.cssText = "position:relative;top:" + x + "px;left:-" + x + "px;width:" + x + "px;height:" + x + "px;";
+                span.appendChild(overlay);
+                //iconic.inject(overlay);
+            }
+
+            td.appendChild(span);
+            alerts.appendChild(td);
+        }
     }
-
-    alerts.appendChild(td);
 };
 
 JSON.sort = function(js) {
@@ -877,9 +947,9 @@ function buildView(view)
     
     json.analog = JSON.sort(json.analog);
     json.digital = JSON.sort(json.digital);
+    json.alerts = JSON.sort(json.alerts);
 
     for (var i = 0; i < json.analog.length; i++) {
-    	console.log(i);
         if(json.analog[i].enabled === true) {
             dashboardAnalog.push(json.analog[i]);
         }else{
@@ -946,8 +1016,6 @@ function buildView(view)
 
         side[0].onclick = function () {
 
-            _alert.style.display = "none";
-
             if(httpRequest != undefined)
                 httpRequest.abort();
             for (var i = 0, l = httpArrayRequest.length; i < l; i++) {
@@ -963,13 +1031,19 @@ function buildView(view)
             buildView("back");
             renderView("back");
 
+            hideAllAlerts();
+
             this.parentElement.style.cssText = "transform:rotateX(180deg); -webkit-transform:rotateX(180deg);";
+            /*
             for (var i = 0, l = blinkAlert.length; i < l; i++)
                 clearInterval(blinkAlert[i]);
             blinkAlert = [];
+            */
         };
 
     }else if (view === "back") {
+
+        buildMenu();
         
         side[0].style.background = document.body.style.backgroundColor;
 
@@ -1016,10 +1090,11 @@ function buildView(view)
 
         side[0].onclick = function () {
             //console.log(this);
-            _alert.style.display = "none";
-
+            
             buildView("front");
             renderView("front");
+
+            hideAllAlerts();
 
             setTimeout(function() {
                 side[0].innerHTML = ""; //empty view
@@ -1037,9 +1112,9 @@ function buildView(view)
         var tr = document.createElement("tr");
         tr.id = view + "Alerts";
         table.appendChild(tr);
+        side[0].appendChild(table);
+        buildAlerts(view);
     }
-
-    side[0].appendChild(table);
 };
 
 function renderViewBuild(g, odbc)
@@ -1101,7 +1176,7 @@ function renderViewBuild(g, odbc)
             canvas.id = g[i].renderTo;
             td.appendChild(canvas);
 
-            if(g[i].pattern != undefined) {
+            if(g[i].pattern != undefined) { //Digital
                 var sd = new SegmentDisplay(g[i].renderTo);
                 sd.regex = g[i].regex;
                 sd.pattern = g[i].pattern;
@@ -1109,7 +1184,7 @@ function renderViewBuild(g, odbc)
                 sd.colorOff = g[i].colorOff;
                 sd.draw();
                 sd.setValue(g[i].count);
-        	}else{
+        	}else{ //Analog
 				new RadialGauge(g[i]).draw();
         	}
         }
@@ -1160,8 +1235,6 @@ function renderView(view)
         */
         
     }else if (view === "back") {
-
-        buildMenu();
 
         var divA = document.getElementById("backAvailable");
         var divB = document.getElementById("backAnalogSelected");
@@ -1235,8 +1308,6 @@ function renderView(view)
     }
 
     sizeView(view);
-    
-    buildAlerts(view);
 };
 
 function sortView(list, enabled)
@@ -1283,101 +1354,6 @@ function sortView(list, enabled)
     }
     //console.log(event.item.id);
     //console.log(event.newIndex);
-};
-
-function buildAlertList(showAll,size)
-{
-    var td = document.createElement("td");
-
-    for (var key in json.alerts)
-    {
-        //console.log(json.alerts[i].svg);
-        if(json.alerts[key].enabled == true || showAll) {
-            
-            if(showAll === false)
-                switch (key) {
-                    case "emergency":
-                    stream += ",din_emcystop";
-                    break;
-                }
-
-            var span = document.createElement("span");
-            var svg = document.createElement("img");
-            var x = size / 2;
-
-            if(showAll)
-                x = size / 3;
-
-            svg.dataset.color = json.alerts[key].color;
-            svg.classList.add("iconic");
-            svg.classList.add("svg-grey");
-            svg.style.width = size + "px";
-            svg.style.height = size + "px";
-            svg.src = "svg/" + json.alerts[key].icon + ".svg";
-            //svg.setAttribute("data-src", "svg/" + key + ".svg");
-            span.style.position = "relative";
-            span.style.zIndex = "1";
-            span.id = "alert_" + key;
-            span.appendChild(svg);
-            iconic.inject(svg);
-
-            span.onclick = function (e) {
-                //console.log(this);
-                //console.log(this.children[1].src);
-                e.preventDefault();
-                e.stopPropagation();
-
-                if(this.children[1].src.indexOf("disabled") !== -1)
-                {
-                    json.alerts[this.id.substr(6)].enabled = true;
-
-                    this.children[1].src = "svg/enabled.svg";
-                    /*
-                    var lightboxBody = document.getElementById("lightboxBody");
-                    var lightboxTitle = document.getElementById("lightboxTitle");
-                   
-                    lightboxBody.innerHTML = "";
-                    lightboxTitle.innerHTML = "";
-
-                    if(this.id =="alert_odometer")
-                    {
-                        var textarea = document.createElement("textarea");
-                        textarea.rows = "20";
-                        textarea.value = JSON.stringify(json.odometer, null, 2);
-                        lightboxBody.appendChild(textarea);
-                        window.location = "#openModal";
-                    }
-                    */
-                }else{
-                    json.alerts[this.id.substr(6)].enabled = false;
-                    this.children[1].src = "svg/disabled.svg";
-                }
-
-                console.log("...set alert '" + this.id.substr(6) + "' " + json.alerts[this.id.substr(6)].enabled);
-
-                //buildAlerts("front");
-            };
-
-            if(showAll)
-            {
-                var overlay = document.createElement("img");
-                overlay.classList.add("iconic");
-                if(json.alerts[key].enabled)
-                {
-                    overlay.src = "svg/enabled.svg";
-                }else{
-                    overlay.src = "svg/disabled.svg";
-                }
-                overlay.style.cssText = "position:relative;top:" + x + "px;left:-" + x + "px;width:" + x + "px;height:" + x + "px;";
-                span.appendChild(overlay);
-                //iconic.inject(overlay);
-            }
-
-            td.appendChild(span);
-        }
-    }
-
-    return td;
 };
 
 function buildGaugeList(g,id,title)
@@ -1507,17 +1483,19 @@ function streamInit(serial,canbus)
 
                 if(com.indexOf("Serial") != -1) {
                     serialAjax(SerialRX);
+                    return;
+                }else if(SerialRX.length > 0) {
+                    showAlert("Cannot Initialize Serial","danger", 4000);
                 }
                 if(com.indexOf("CAN") != -1) {
                     canbusAjax(CANBusRX);
+                    return;
+                }else if(CANBusRX.length > 0) {
+                    showAlert("Cannot Initialize CANBus","danger", 4000);
                 }
             } else {
                 //console.log(this.statusText);
-                _alert.innerHTML = "Cannot Initialize Serial or CAN " + this.statusText;
-            	_alert.style.display = "block";
-                setTimeout(function() {
-                    _alert.style.display = "none";
-                }, 4000);
+                showAlert(this.statusText,"danger", 4000);
             }
         }
     }
@@ -1696,9 +1674,7 @@ function httpArrayStream(i, url, item, delay)
         if(this.timeoutCount > 5)
         {
             this.timeoutCount = 0;
-
-            _alert.innerHTML = "Connection Lost";
-            _alert.style.display = "block";
+            showAlert("Connection Lost","danger", 4000);
 
         }else{
             httpArrayTimer[i] = setTimeout(function() {
@@ -1745,12 +1721,11 @@ function httpStream(url, items, delay)
             if (newData.indexOf("Error") != -1) {
 
                 if (newData.indexOf("<?php") != -1) {
-                    _alert.innerHTML = "PHP Not Found";
+                    showAlert("PHP Not Found","danger", 4000);
                 }else{
-                    _alert.innerHTML = newData;
+                    showAlert(newData,"danger", 4000);
                 }
-                _alert.style.display = "block";
-
+              
                 httpRequest.abort();
 
             } else {
@@ -1853,11 +1828,7 @@ function httpStream(url, items, delay)
 
                 //console.log(this.status);
                 if (this.seenBytes) {
-                    _alert.innerHTML = "Connection Lost";
-                   	_alert.style.display = "block";
-                   	setTimeout(function() {
-                		_alert.style.display = "none";
-            		}, 4000);
+                    showAlert("Connection Lost","danger", 0);
                 }
             }
             httpTimer = setTimeout(function() {
@@ -1875,8 +1846,7 @@ function httpStream(url, items, delay)
         if(this.timeoutCount > 5)
         {
             this.timeoutCount = 0;
-            _alert.innerHTML = "Connection Lost";
-            _alert.style.display = "block";
+            showAlert("Connection Lost","danger", 0);
 
         }else{
             httpTimer = setTimeout(function() {
@@ -1916,11 +1886,11 @@ function ajaxReceive(path, success, error)
     };
 };
 
-function snapshotExport()
+function fileExport()
 {
     var d = new Date();
     var data = encode(JSON.stringify(json,null,2));
-    var blob = new Blob([data], { type: 'application/octet-stream' });
+    var blob = new Blob([data], { type: "application/octet-stream" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
@@ -1933,9 +1903,54 @@ function snapshotExport()
     }, 0);
 };
 
-function snapshotImport()
+function fileImport()
 {
-    document.getElementsByClassName("snapshotUpload")[0].click();
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.async = true;
+    script.src = "js/pako.deflate.js";
+
+    script.onload = function() //if (script.readyState) //IE
+    {
+        var fileSelect = document.getElementById("file-select");
+        fileSelect.onchange = function(event) {
+
+            var file = this.files[0];
+
+            if(file.name.indexOf(".json") != -1) {
+                //form.submit();
+                sendModern("snapshot.php", new Uint8Array(this.result), file.name);
+            }else{
+                //===========================
+                //GZIP before sending as POST
+                //===========================
+                var reader = new FileReader();
+                reader.onload = function() {
+                    /*
+                    var arrayBuffer = this.result, array = new Uint8Array(arrayBuffer), binaryString = String.fromCharCode.apply(null, array);
+                    console.log(binaryString);
+                    */
+
+                    var pako = window.pako;
+                    var resultAsUint8Array = pako.deflate(this.result);
+                    //console.log(resultAsUint8Array);
+                    sendModern("snapshot.php", resultAsUint8Array, file.name);
+
+                    /*
+                    var resultAsBinString  = pako.deflate(this.result, { to: 'string' });
+                    console.log(resultAsBinString);
+                    sendAncient("snapshot.php", resultAsBinString);
+                    */
+                }
+                reader.readAsArrayBuffer(this.files[0]);
+            }
+        };
+       
+    };
+    document.head.appendChild(script);
+
+    var fileSelect = document.getElementById("file-select");
+    fileSelect.click();
 };
 
 var encode = function( s ) {
@@ -1948,20 +1963,104 @@ var encode = function( s ) {
 
 function saveView()
 {
-    console.log("saving view");
-
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', 'views/save.php', true);
-    xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+    xhr.open("POST", "views/save.php", true);
+    xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
     xhr.onload = function () {
         //console.log(this.responseText);
-        if(this.responseText !== "")
-        {
-            _alert.innerHTML = this.responseText;
-            _alert.style.display = "block";
+        if(this.responseText !== "") {
+            showAlert(this.responseText,"danger",4000);
         }
     };
     xhr.send('view=' + view + '&json=' + encodeURI(JSON.stringify(json)));
+};
+
+function sendModern(url, formData, resultAsUint8Array, filename)
+{
+    var xhr = new XMLHttpRequest;
+    xhr.open("POST", url, true);
+
+    var formData = new FormData(); //document.forms.snapshot);
+    var blob = new Blob([resultAsUint8Array], { type: "application/octet-stream"});
+    formData.append("file", blob, filename);
+
+    xhr.onload = function(e) {
+        if (this.status === 200) {
+            showAlert("Upload Success","success",4000);
+        } else {
+            showAlert("Upload Error " + this.status,"danger",4000);
+        }
+    };
+    xhr.send(formData);
+};
+
+function sendAncient(url, resultAsBinString, filename)
+{
+    var xhr = new XMLHttpRequest;
+
+    // Emulate form body. But since we can send intact only 7-bit
+    // characters, wrap binary data to base64. That will add 30% of size.
+    var boundary = '----' + String(Math.random()).slice(2);
+
+    var data = '';
+
+    data += '--' + boundary + '\r\n';
+    data += 'Content-Disposition: form-data; name="file"; filename="' + filename + '"\r\n';
+    data += 'Content-Type: application/octet-stream\r\n';
+    data += 'Content-Transfer-Encoding: base64\r\n';
+    data += '\r\n';
+    data += btoa(resultAsBinString) + '\r\n';
+    data += '--' + boundary + '--\r\n';
+
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+    xhr.send(data);
+};
+
+function showAlert(text,type,timeout)
+{
+    var top = 0;
+    var webAlerts = document.getElementById("webAlerts");
+    for (var i = 0; i < webAlerts.childNodes.length; i++ ) {
+        top += webAlerts.childNodes[i].clientHeight;
+    }
+
+    alert = document.createElement("div");
+    alert.classList.add("alert");
+    alert.classList.add("alert-" + type);
+    alert.style.top = top + "px";
+    alert.innerHTML = text;
+    alert.style.display = "block";
+
+    alert.onclick = function(e) {
+        hideAlert(this);
+    };
+
+    if(timeout != 0)
+        setTimeout(hideAlert.bind(null, alert), timeout);
+
+    webAlerts.appendChild(alert);
+};
+
+function hideAllAlerts()
+{
+    var webAlerts = document.getElementById("webAlerts");
+    for (var i = 0; i < webAlerts.childNodes.length; i++ ) {
+        webAlerts.removeChild(webAlerts.childNodes[i]);
+    }
+};
+
+function hideAlert(alert)
+{
+    //console.log(alert);
+    var webAlerts = document.getElementById("webAlerts");
+    webAlerts.removeChild(alert);
+
+    var top = 0;
+    for (var i = 0; i < webAlerts.childNodes.length; i++ ) {
+        webAlerts.childNodes[i].style.top = top + "px";
+        top += webAlerts.childNodes[i].clientHeight;
+    }
 };
 
 function getWidth() {

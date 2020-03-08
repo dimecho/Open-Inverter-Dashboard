@@ -5,13 +5,76 @@
     "canbus": 250,
     "timeout": 2000,
     "stream": "",
-    "opendbc": "/opendbc/EV-can_ZE0.dbc",
+    "opendbc": "\/opendbc\/EV-can_ZE0.dbc",
     "analog": [
         {
             "index": 0,
+            "serial": "udc",
+            "canbus": "",
+            "regex": "\/\\d{1,}\/g",
+            "enabled": true,
+            "renderTo": "udc",
+            "units": "%",
+            "title": "Battery",
+            "width": 407,
+            "height": 407,
+            "highlights": [
+                {
+                    "from": 0,
+                    "to": 20,
+                    "color": "rgba(200,50,50,0.8)"
+                },
+                {
+                    "from": 20,
+                    "to": 40,
+                    "color": "rgba(90,90,90,0.8)"
+                },
+                {
+                    "from": 40,
+                    "to": 60,
+                    "color": "rgba(90,90,90,0.3)"
+                },
+                {
+                    "from": 80,
+                    "to": 100,
+                    "color": "rgba(39,174,96,0.75)"
+                }
+            ],
+            "borderShadowWidth": 0,
+            "borders": false,
+            "needleType": "arrow",
+            "needleWidth": 2,
+            "needleCircleSize": 7,
+            "needleCircleOuter": true,
+            "needleCircleInner": false,
+            "animationDuration": 1500,
+            "animationRule": "linear",
+            "valueBoxBorderRadius": 2,
+            "colorMajorTicks": "#ddd",
+            "colorMinorTicks": "#ddd",
+            "colorTitle": "#eee",
+            "colorUnits": "#ccc",
+            "colorNumbers": "#eee",
+            "colorPlate": "#222",
+            "colorBorderOuter": "#333",
+            "colorBorderOuterEnd": "#111",
+            "colorBorderMiddle": "#222",
+            "colorBorderMiddleEnd": "#111",
+            "colorBorderInner": "#111",
+            "colorBorderInnerEnd": "#333",
+            "colorNeedleShadowDown": "#333",
+            "colorNeedleCircleOuter": "#333",
+            "colorNeedleCircleOuterEnd": "#111",
+            "colorNeedleCircleInner": "#111",
+            "colorNeedleCircleInnerEnd": "#222",
+            "colorValueBoxRect": "#222",
+            "colorValueBoxRectEnd": "#333"
+        },
+        {
+            "index": 1,
             "serial": "rpm",
             "canbus": "",
-            "regex": "/\\d{1,}/g",
+            "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "renderTo": "rpm",
             "units": "Km\/h",
@@ -82,73 +145,10 @@
             "colorValueBoxRectEnd": "#333"
         },
         {
-            "index": 1,
-            "serial": "udc",
-            "canbus": "",
-            "regex": "/\\d{1,}/g",
-            "enabled": true,
-            "renderTo": "udc",
-            "units": "%",
-            "title": "Battery",
-            "width": 407,
-            "height": 407,
-            "highlights": [
-                {
-                    "from": 0,
-                    "to": 20,
-                    "color": "rgba(200,50,50,0.8)"
-                },
-                {
-                    "from": 20,
-                    "to": 40,
-                    "color": "rgba(90,90,90,0.8)"
-                },
-                {
-                    "from": 40,
-                    "to": 60,
-                    "color": "rgba(90,90,90,0.3)"
-                },
-                {
-                    "from": 80,
-                    "to": 100,
-                    "color": "rgba(39,174,96,0.75)"
-                }
-            ],
-            "borderShadowWidth": 0,
-            "borders": false,
-            "needleType": "arrow",
-            "needleWidth": 2,
-            "needleCircleSize": 7,
-            "needleCircleOuter": true,
-            "needleCircleInner": false,
-            "animationDuration": 1500,
-            "animationRule": "linear",
-            "valueBoxBorderRadius": 2,
-            "colorMajorTicks": "#ddd",
-            "colorMinorTicks": "#ddd",
-            "colorTitle": "#eee",
-            "colorUnits": "#ccc",
-            "colorNumbers": "#eee",
-            "colorPlate": "#222",
-            "colorBorderOuter": "#333",
-            "colorBorderOuterEnd": "#111",
-            "colorBorderMiddle": "#222",
-            "colorBorderMiddleEnd": "#111",
-            "colorBorderInner": "#111",
-            "colorBorderInnerEnd": "#333",
-            "colorNeedleShadowDown": "#333",
-            "colorNeedleCircleOuter": "#333",
-            "colorNeedleCircleOuterEnd": "#111",
-            "colorNeedleCircleInner": "#111",
-            "colorNeedleCircleInnerEnd": "#222",
-            "colorValueBoxRect": "#222",
-            "colorValueBoxRectEnd": "#333"
-        },
-        {
             "index": 2,
             "serial": "speed",
             "canbus": "",
-            "regex": "/\\d{1,}/g",
+            "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "renderTo": "speed",
             "units": "1\/min x 1000",
@@ -222,7 +222,7 @@
             "index": 3,
             "serial": "tmpm",
             "canbus": "",
-            "regex": "/\\d{1,}/g",
+            "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "renderTo": "temp",
             "units": "\u00b0C",
@@ -306,7 +306,7 @@
             "index": 0,
             "serial": "",
             "canbus": "",
-            "regex": "/\\d{1,}/g",
+            "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "renderTo": "odometer",
             "pattern": "######",
@@ -326,25 +326,28 @@
     ],
     "alerts": [
         {
+            "index": 0,
             "serial": "udc,udcmax",
             "canbus": "",
-            "regex": "/\\d{1,}/g",
+            "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "icon": "battery",
             "color": "svg-red"
         },
         {
+            "index": 1,
             "serial": "",
             "canbus": "",
-            "regex": "/\\d{1,}/g",
+            "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "icon": "temp",
             "color": "svg-red"
         },
         {
+            "index": 2,
             "serial": "",
             "canbus": "",
-            "regex": "/\\d{1,}/g",
+            "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "icon": "emergency",
             "color": "svg-orange"
