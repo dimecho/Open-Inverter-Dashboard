@@ -15,6 +15,7 @@
 #include <ESPAsyncWebServer.h>
 #include <flash_hal.h>
 #include <StreamString.h>
+#include <SPI.h>
 #define LED_BUILTIN 2 //GPIO1=Olimex, GPIO2=ESP-12/WeMos(D4)
 
 #define DEBUG false
@@ -85,7 +86,6 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 #include <mcp_can.h>
 #include <SPI.h>
 /*
-  //https://www.kvaser.com/support/calculators/bit-timing-calculator/
   #define MCP_8MHz_250kBPS_CFG1 (0x40)
   #define MCP_8MHz_250kBPS_CFG2 (0xF1)
   #define MCP_8MHz_250kBPS_CFG3 (0x85)
@@ -123,7 +123,6 @@ int CAN_ID_FILTERS[10];
 */
 long unsigned int CANmsgId;
 unsigned char CANmsg[8];
-//volatile unsigned char Flag_Recv = 0;
 //=============================
 
 AESLib aesLib;
@@ -292,7 +291,7 @@ void setup()
       //https://openinverter.org/wiki/CAN_communication#Setting_and_reading_parameters_via_SDO
       //CANId Receive Filter (0x581/1409)
 
-      byte txBuf0[] = {0x22, 0x00, 0x20, 0x00, 0, 0, 0, 0}; //0x00 is node id (internal firmware parameter id)
+      byte txBuf0[] = {0x22, 0x00, 0x20, 0x00, 0, 0, 0, 0}; //0x00 is node id (see: include/param_prj.h)
 
       String sz = request->getParam("sdo")->value();
       if (sz.indexOf(",") != -1)
@@ -582,6 +581,7 @@ void setup()
 
       String com = "";
       /*
+        // SeeedStudio Library
         #define CAN_5KBPS    1
         #define CAN_10KBPS   2
         #define CAN_20KBPS   3
@@ -600,11 +600,29 @@ void setup()
         #define CAN_500KBPS  16
         #define CAN_666kbps  17
         #define CAN_1000KBPS 18
+
+        // Coryjfowler Library
+        #define CAN_4K096BPS 0
+        #define CAN_5KBPS    1
+        #define CAN_10KBPS   2
+        #define CAN_20KBPS   3
+        #define CAN_31K25BPS 4
+        #define CAN_33K3BPS  5
+        #define CAN_40KBPS   6
+        #define CAN_50KBPS   7
+        #define CAN_80KBPS   8
+        #define CAN_100KBPS  9
+        #define CAN_125KBPS  10
+        #define CAN_200KBPS  11
+        #define CAN_250KBPS  12
+        #define CAN_500KBPS  13
+        #define CAN_1000KBPS 14
       */
       int canbus_kbps_init = request->getParam("canbus")->value().toInt();
-      int canbus_kbps[] = {0, 5, 10, 20, 25, 31, 33, 40, 50, 80, 83, 95, 100, 125, 200, 250, 500, 666, 1000};
+      //int canbus_kbps[] = {0, 5, 10, 20, 25, 31, 33, 40, 50, 80, 83, 95, 100, 125, 200, 250, 500, 666, 1000}; // SeeedStudio Library
+      int canbus_kbps[] = {4, 5, 10, 20, 31, 33, 40, 50, 80, 100, 125, 200, 250, 500, 1000}; // Coryjfowler Library
 
-      for (int i = 1; i <= 18; i++) {
+      for (int i = 0; i < sizeof(canbus_kbps); i++) {
         if (canbus_kbps[i] == canbus_kbps_init) {
           canbus_kbps_init = i;
           break;
@@ -612,9 +630,17 @@ void setup()
       }
 
       //if (CAN0.begin(canbus_kbps_init) == CAN_OK) // SeeedStudio Library
-      if (CAN0.begin(MCP_ANY, canbus_kbps_init, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
+      if (CAN0.begin(MCP_STDEXT, canbus_kbps_init, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
       {
-        com  += "CAN";
+        // SeeedStudio Library
+        //CAN0.setMode(MODE_NORMAL);
+        //CAN0.setMode(MODE_LISTENONLY);
+        //-------------------
+        // Coryjfowler Library
+        CAN0.setMode(MCP_NORMAL);
+        //CAN0.setMode(MCP_LISTENONLY);
+
+        com  += "CAN" + String(canbus_kbps_init);
       }
       if (Serial) {
         com  += "Serial";
@@ -745,7 +771,7 @@ void setup()
     {
       String contentType = getContentType(file);
 
-      AsyncWebServerResponse *response = request->beginResponse(SPIFFS, request->url(), contentType, request->hasParam("download"));
+      AsyncWebServerResponse *response = request->beginResponse(SPIFFS, file, contentType, request->hasParam("download"));
 
       if (contentType != text_json) {
         response->addHeader("Content-Encoding", "gzip");
@@ -778,7 +804,7 @@ void setup()
   //SPI.setClockDivider(SPI_CLOCK_DIV2);         // Set SPI to run at 8MHz (16MHz / 2 = 8 MHz)
 
   //if (CAN0.begin(CAN_250KBPS) == CAN_OK) // SeeedStudio Library
-  if (CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
+  if (CAN0.begin(MCP_STDEXT, CAN_250KBPS, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
   {
 #if DEBUG
     Serial.println("MCP2515 Initialized Successfully!");
@@ -800,17 +826,6 @@ void setup()
   //pinMode(CAN0_INT, INPUT);
 }
 
-//Interrupt Service Routine
-/*
-  void MCP2515_ISR() {
-  //Do not use delay or millis here. Serial data received while here may be lost.
-  //Declare as volatile any variables that you modify within this function.
-  Flag_Recv = 1;
-  //stop interrupts so you can process the message
-  noInterrupts();
-  }
-*/
-
 void loop()
 {
   if (restartRequired) {
@@ -822,7 +837,7 @@ void loop()
   }
   //server.handleClient();
   //ArduinoOTA.handle();
-  //yield();
+  yield();
 }
 
 char* string2char(String command) {
@@ -835,10 +850,6 @@ char* string2char(String command) {
 StreamString CANReceive()
 {
   StreamString CANMessage;
-
-  if (CAN0.checkError()) {
-    CANMessage.println(CAN0.checkError());
-  }
 
   if (CAN0.checkReceive() == CAN_MSGAVAIL)
   {
@@ -896,7 +907,10 @@ StreamString CANReceive()
       updateCanMsgFromFloat(myFloatVal, 0, 16, msgOffset, msgFactor);
       CAN0.sendMsgBuf(CANmsgId, 1, 8, CANmsg);
     */
-    //} else {
+  } else {
+    if (CAN0.checkError() == CAN_CTRLERROR) {
+      CANMessage.println(CAN0.getError());
+    }
     //CANMessage.println("No CAN Message Available");
   }
   return CANMessage;

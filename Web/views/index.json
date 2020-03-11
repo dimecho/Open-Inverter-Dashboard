@@ -1,7 +1,7 @@
 {
     "index": [
-    	"/views/open.json",
-    	"/views/lexus-gs450-vcu.json",
-    	"/views/rusty.json"
+    	"views/open.json",
+    	"views/lexus-gs450-vcu.json",
+    	"views/rusty.json"
     ]
 }

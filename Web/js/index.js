@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function(event)
     }
 
     if (view === undefined) {
-        view = "/views/open.json";
+        view = "views/open.json";
     }
 
     ajaxReceive(view, function(data)
@@ -85,8 +85,12 @@ document.addEventListener("DOMContentLoaded", function(event)
         }, 4000);
 
     }, function(xhr) {
-        console.error(xhr);
-        setCookie("view", "/views/open.json", 360);
+        //console.error(xhr);
+        if (getCookie("view") === undefined) {
+	        setCookie("view", "views/open.json", 360);
+	        location.reload();
+    	}
+    	showAlert("HTTP Error: " + xhr.status,"danger", 4000);
     });
 });
 
@@ -217,7 +221,11 @@ function sizeView(view)
 
         if(backDigitalSelected != undefined)
         {
-            backDigitalSelected.parentElement.height = Math.round(getHeight() - backMenu.clientHeight - backAvailable.parentElement.height - backAnalogSelected.parentElement.height - (w * 0.5));
+        	var a = 0;
+        	if(backAnalogSelected != undefined)
+        		a = backAnalogSelected.parentElement.height;
+
+            backDigitalSelected.parentElement.height = Math.round(getHeight() - backMenu.clientHeight - backAvailable.parentElement.height - a - (w * 0.5));
         
             //w = dynamicGaugeWidth(dashboardDigital);
             for (var i = 0; i < dashboardDigital.length; i++) {
@@ -1501,13 +1509,11 @@ function streamInit(serial,canbus)
 
                 if(com.indexOf("Serial") != -1) {
                     serialAjax(SerialRX);
-                    return;
                 }else if(SerialRX.length > 0) {
                     showAlert("Cannot Initialize Serial","danger", 4000);
                 }
                 if(com.indexOf("CAN") != -1) {
                     canbusAjax(CANBusRX);
-                    return;
                 }else if(CANBusRX.length > 0) {
                     showAlert("Cannot Initialize CANBus","danger", 4000);
                 }
@@ -1657,10 +1663,10 @@ function canbusAjax(parameters)
         for (var i = 0, l = parameters.length; i < l; i++) {
             canbusFilters.push(parameters[i][0]);
         }
-        ajaxSend("can/filter?id=" + canbusFilters.join(','));
+        //ajaxSend("can/filter?id=" + canbusFilters.join(','));
 
         for (var i = 0, l = parameters.length; i < l; i++) {
-            httpArrayStream("can/read?id=" + parameters[i][0], parameters[i], 2000);
+            httpArrayStream(i,"can/read", parameters[i], 2000);
         }
     }
 };
@@ -1676,19 +1682,20 @@ function serialAjax(parameters)
 		httpStream("serial.php?get=" + parameters.join(','), parameters, 2000); //sends TX command then reads RX once
 	}else if(json.stream == "array") {
         for (var i = 0, l = parameters.length; i < l; i++) {
-            httpArrayStream("serial.php?get=" + parameters[i], parameters[i], 2000);
+            httpArrayStream(i,"serial.php?get=" + parameters[i], [parameters[i],0,0], 2000);
         }
     }else{
 		httpStream("serial.php?read=" + parameters.join(','), parameters, 2000); //reads incoming serial RX
 	}
 };
 
-function httpArrayStream(i, url, item, delay)
+function httpArrayStream(i, url, items, delay)
 {
     clearTimeout(httpArrayTimer[i]);
 
     httpArrayRequest[i] = new XMLHttpRequest();
-    httpArrayRequest[i].id = getGaugeID(item);
+    httpArrayRequest[i].id = getGaugeID(items[0]);
+    httpArrayRequest[i].items = items;
     httpArrayRequest[i].delay = delay;
     httpArrayRequest[i].timeoutCount = 0;
 
@@ -1698,7 +1705,38 @@ function httpArrayStream(i, url, item, delay)
 
             if (this.status === 200) {
 
-                console.log(this.responseText);
+                if(this.responseText != "") {
+                    //Probably fatser to use client CPU to analyse than ESP8266
+                    try {
+	                    var split = this.responseText.split(':');
+	                    var hex = split[3].split(' ');
+	                    var position = parseInt(this.items[1]);
+	                    var size = parseInt(this.items[2]) - position;
+	                    var value = hex[position];
+
+	                    //TODO: Optimize this
+	                  	if(size > 16 ) {
+	                    	if(position > 8) {
+	                    		value = hex[position + 1] << 8 | hex[position + 2] << 8;
+	                    	}else if(position > 16) {
+	                    		value = hex[position + 2] << 8 | hex[position + 3] << 8;
+	                    	}else{
+	                    		value = value | hex[position + 1] << 8 | hex[position + 2] << 8;
+	                    	}
+	                    }else if(size > 8) {
+	                    	if(position > 8) {
+	                    		value = hex[position + 1] << 8;
+	                    	}else{
+	                    		value = value | hex[position + 1] << 8;
+	                    	}
+	                    }
+	                    //console.log(hex);
+	                    console.log(this.items[0] + "," + position + "," + size + " " + split[3] + " > " + value + " (0x" + toHex(value) + ")");
+
+                    } catch(err) {
+                    	console.log(err);
+                    }
+                }
             }
             httpArrayTimer[i] = setTimeout(function() {
                 httpArrayStream(i, httpArrayRequest[i].responseURL, httpArrayRequest[i].items, httpArrayRequest[i].delay);
@@ -2132,6 +2170,13 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
   var d = R * c;
   return d;
+};
+
+function toHex(d) {
+    var n = Number(d).toString(16);
+    if(n.length & 1) //Odd
+        n = "0" + n;
+    return n.toUpperCase();
 };
 
 Number.prototype.toRad = function() {

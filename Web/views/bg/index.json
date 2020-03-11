@@ -1,7 +1,7 @@
 {
     "index": [
-        "blackboard.png",
-        "hardleather.png",
-        "whiteleather.png"
+        "views/bg/blackboard.png",
+        "views/bg/hardleather.png",
+        "views/bg/whiteleather.png"
     ]
 }
