@@ -1,6 +1,7 @@
 {
     "vehicle": "",
     "dashboard": "Digital Gauge Example",
+    "notes" : "",
     "serial": 115200,
     "canbus": 250,
     "timeout": 2000,

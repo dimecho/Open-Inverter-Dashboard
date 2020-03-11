@@ -1,10 +1,11 @@
 {
     "vehicle": "",
     "dashboard": "Open Inverter Universal",
+    "notes" : "",
     "serial": 115200,
     "canbus": 250,
     "timeout": 2000,
-    "stream": "",
+    "stream": "sdo",
     "opendbc": "\/opendbc\/EV-can_ZE0.dbc",
     "analog": [
         {
@@ -72,8 +73,8 @@
         },
         {
             "index": 1,
-            "serial": "rpm",
-            "canbus": "",
+            "serial": "",
+            "canbus": "0x3ff,6,16",
             "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "renderTo": "rpm",
@@ -220,8 +221,8 @@
         },
         {
             "index": 3,
-            "serial": "tmpm",
-            "canbus": "",
+            "serial": "",
+            "canbus": "0x3ff,0,8",
             "regex": "\/\\d{1,}\/g",
             "enabled": true,
             "renderTo": "temp",

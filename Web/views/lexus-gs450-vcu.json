@@ -1,6 +1,7 @@
 {
     "vehicle": "Lexus GS450",
     "dashboard": "Lexus GS450 VCU over Serial",
+    "notes" : "",
     "serial": 19200,
     "canbus": 0,
     "timeout": 2000,

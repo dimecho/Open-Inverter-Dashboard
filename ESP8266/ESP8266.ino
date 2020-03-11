@@ -17,7 +17,7 @@
 #include <StreamString.h>
 #define LED_BUILTIN 2 //GPIO1=Olimex, GPIO2=ESP-12/WeMos(D4)
 
-#define DEBUG true
+#define DEBUG false
 
 AsyncWebServer server(80);
 
@@ -59,7 +59,7 @@ static const char serverIndex[] PROGMEM =
 <br>
 <form method='POST' action='' enctype='multipart/form-data'>
    <input type='file' accept='.bin' name='filesystem'>
-   <input type='submit' value='Update SPIFFS'>
+   <input type='submit' value='Update Spiffs'>
 </form>
 </body>
 </html>)";
@@ -105,8 +105,11 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 //#define CAN0_INT 2   // Set INT to pin GPIO2 (D4)
 MCP_CAN CAN0(4);     // Set CS to pin GPIO4 (D2) or GPIO15 (D8)
 
+int CAN_ID_FILTERS[10];
+
 /*
-  CAN message address: 0xPPPXXXXSS
+  Standard CANId: 0x800 (max = 2048)
+  Extended CANId: 0xPPPXXXXSS
   P = priority;  low value = higher priority;
       0x00=0
       0x0F=15
@@ -279,20 +282,160 @@ void setup()
   //Async Web Server
   //===============
 
-  server.on("/can/read", [](AsyncWebServerRequest * request) {
+  server.on("/can/read",  HTTP_GET, [](AsyncWebServerRequest * request) {
 
     AsyncResponseStream *response = request->beginResponseStream(text_plain);
-    response->addHeader("Cache-Control", "no-cache");
-    //response->addHeader("Content-Length", "*");
+    response->addHeader("Cache-Control", "no-store");
 
+    if (request->hasParam("sdo"))
+    {
+      //https://openinverter.org/wiki/CAN_communication#Setting_and_reading_parameters_via_SDO
+      //CANId Receive Filter (0x581/1409)
+
+      byte txBuf0[] = {0x22, 0x00, 0x20, 0x00, 0, 0, 0, 0}; //0x00 is node id (internal firmware parameter id)
+
+      String sz = request->getParam("sdo")->value();
+      if (sz.indexOf(",") != -1)
+      {
+        char buf[sz.length() + 1];
+        sz.toCharArray(buf, sizeof(buf));
+        char *p = buf;
+        char *str;
+
+        while ((str = strtok_r(p, ",", &p)) != NULL) //split
+        {
+          txBuf0[3] = String(str).toInt();
+          CAN0.sendMsgBuf(0x601, 0, 8, txBuf0);
+          response->print(CANReceive());
+        }
+      } else {
+        txBuf0[3] = sz.toInt();
+        CAN0.sendMsgBuf(0x601, 0, 8, txBuf0);
+      }
+    }
     response->print(CANReceive());
     request->send(response);
   });
-  server.on("/can/write", [](AsyncWebServerRequest * request) {
-    unsigned char stmp[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-    CAN0.sendMsgBuf(0x00, 0, 8, stmp);
+  server.on("/can/write",  HTTP_GET, [](AsyncWebServerRequest * request) {
 
-    request->send(200, text_plain, "OK");
+    byte txBuf0[] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+    String id = request->getParam("id")->value();
+    String sz = request->getParam("data")->value();
+    if (sz.indexOf(",") != -1)
+    {
+      uint8_t i = 0;
+      char buf[sz.length() + 1];
+      sz.toCharArray(buf, sizeof(buf));
+      char *p = buf;
+      char *str;
+      while ((str = strtok_r(p, ",", &p)) != NULL) //split
+      {
+        txBuf0[i] = String(str).toInt();
+        i++;
+      }
+      CAN0.sendMsgBuf(id.toInt(), 0, 8, txBuf0);
+    }
+    request->send(200, text_plain, "CAN Message Sent");
+  });
+  server.on("/can/filter", HTTP_GET, [](AsyncWebServerRequest * request) {
+
+    //Data bytes are ONLY checked when the MCP2515 is in 'MCP_STDEXT' mode via the begin
+    //function, otherwise ('MCP_STD') only the ID is checked.
+
+    //https://github.com/SeeedDocument/CAN_BUS_Shield/raw/master/resource/MCP2515.pdf
+    //RXB0 has RXM0 (Mask 0), RXF0, and RXF1 (Filter 0 and Filter 1).
+    //RXB1 has RXM1 (Mask 1), RXF2, RXF3, RXF4, and RXF5 (Filters 2, 3, 4, and 5).
+
+    uint32_t RXM = 0x00000000;
+    uint32_t RXF = 0x00000000;
+
+    if (request->hasParam("id"))
+    {
+      String sz = request->getParam("id")->value();
+      if (sz.indexOf(",") != -1)
+      {
+        uint8_t i = 0;
+        char buf[sz.length() + 1];
+        sz.toCharArray(buf, sizeof(buf));
+        char *p = buf;
+        char *str;
+
+        memset(CAN_ID_FILTERS, 0, sizeof(CAN_ID_FILTERS));
+        while ((str = strtok_r(p, ",", &p)) != NULL) //split
+        {
+          //TODO: Build Range from Filters
+
+          RXM = String(str).toInt() >> 8;
+          RXF = String(str).toInt() >> 8;
+          CAN_ID_FILTERS[i] = RXF;
+          i++;
+        }
+      } else {
+        RXM = sz.toInt() >> 8;
+        RXF = sz.toInt() >> 8;
+        CAN_ID_FILTERS[0] = RXF;
+      }
+    }
+
+    CAN0.init_Filt(0, 0, RXM); //Mask0 is for Filter0 and Filter1
+    CAN0.init_Filt(0, 0, RXF); //0
+    CAN0.init_Filt(1, 0, RXF); //1
+
+    CAN0.init_Mask(1, 0, RXM); //Mask1 is only for Filter2, 3, 4, and 5
+    CAN0.init_Filt(2, 0, RXF); //2
+    CAN0.init_Filt(3, 0, RXF); //3
+    CAN0.init_Filt(4, 0, RXF); //4
+    CAN0.init_Filt(5, 0, RXF); //5
+
+    /*
+      CAN0.init_Mask(0,0,0x03A00000); //Mask0 is for Filter0 and Filter1
+      CAN0.init_Filt(0,0,0x03A00000);
+      CAN0.init_Filt(1,0,0x03A00000);
+
+      CAN0.init_Mask(1,0,0x03A00000); //Mask1 is only for Filter2, 3, 4, and 5
+      CAN0.init_Filt(2,0,0x03A00000);
+      CAN0.init_Filt(3,0,0x03A00000);
+      CAN0.init_Filt(4,0,0x03A00000);
+      CAN0.init_Filt(5,0,0x03A00000);
+    */
+
+    /*
+      https://forum.arduino.cc/index.php?topic=527028.0
+    */
+    //Set Mask 0 + Filter 0, Standard Addressing 11 bits
+    //CAN0.init_Mask(0, 0, 0x07FF); //Mask0 is for Filter0 and Filter1
+    //CAN0.init_Filt(0, 0, 0x740);
+
+    //Set Mask 1 + Filter 2, Extended Addressing // 18 bits
+    //CAN0.init_Mask(1, 1, (SA<<18) | EA); //Mask1 is only for Filter2, 3, 4, and 5
+    //CAN0.init_Filt(2, 1, (SAMask<<18) | EAMask);
+
+    /*
+      http://www.savvysolutions.info/savvymicrocontrollersolutions/arduino.php?topic=arduino-seeedstudio-CAN-BUS-shield
+    */
+    //Generally, set the mask to 0xFFFFFFF and then apply filters
+    //to each of the messages you want to allow to pass to the CAN bus shield.
+    //
+    //Mask 0xFFFFFFF & filter 0xFFFFFFF disables all messages
+    //Mask 0xFFFFFFF & filter 0x0 disables all messages (mask disables filter)
+    //Mask 0x0 & filter 0x0 allows all messages to pass
+    //Mask 0x0 & filter 0xFFFFFFF allows msg 0xCF00400 to be received
+    //Mask 0xFFFFFFF & filter 0xCF00400 allows msg 0xCF00400 to be received
+
+    //=================================
+    //After applying Filters reset Mode
+    //=================================
+    // SeeedStudio Library
+    //CAN0.setMode(MODE_NORMAL);
+    //CAN0.setMode(MODE_LISTENONLY);
+    //-------------------
+    // Coryjfowler Library
+    CAN0.setMode(MCP_NORMAL);
+    //CAN0.setMode(MCP_LISTENONLY);
+    //=================================
+
+    request->send(200, text_plain, "CAN Filter Set");
   });
   /*
     server.on("/can/sleep", [](AsyncWebServerRequest * request) {
@@ -463,22 +606,22 @@ void setup()
 
       for (int i = 1; i <= 18; i++) {
         if (canbus_kbps[i] == canbus_kbps_init) {
-          canbus_kbps_init = canbus_kbps[i];
+          canbus_kbps_init = i;
           break;
         }
       }
 
-      if (CAN0.begin(canbus_kbps_init) == CAN_OK) // SeeedStudio Library
-      //if (CAN0.begin(MCP_ANY, canbus_kbps_init, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
+      //if (CAN0.begin(canbus_kbps_init) == CAN_OK) // SeeedStudio Library
+      if (CAN0.begin(MCP_ANY, canbus_kbps_init, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
       {
         com  += "CAN";
       }
       if (Serial) {
-      com  += "Serial";
-    }
-    request->send(200, text_plain, com);
+        com  += "Serial";
+      }
+      request->send(200, text_plain, com);
 
-  } else if (request->hasParam("get")) {
+    } else if (request->hasParam("get")) {
       String sz = request->getParam("get")->value();
       String out;
 
@@ -504,7 +647,7 @@ void setup()
     } else if (request->hasParam("stream")) {
 
       AsyncResponseStream *response = request->beginResponseStream(text_plain);
-      response->addHeader("Cache-Control", "no-cache");
+      response->addHeader("Cache-Control", "no-store");
       response->addHeader("Content-Length", "*");
 
       //String output;
@@ -631,54 +774,27 @@ void setup()
     10 ms = 0.01 sec = 100 Hz
   */
 
-  if (CAN0.begin(CAN_250KBPS) == CAN_OK) // SeeedStudio Library
-    //if (CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
+  SPI.begin();
+  //SPI.setClockDivider(SPI_CLOCK_DIV2);         // Set SPI to run at 8MHz (16MHz / 2 = 8 MHz)
+
+  //if (CAN0.begin(CAN_250KBPS) == CAN_OK) // SeeedStudio Library
+  if (CAN0.begin(MCP_ANY, CAN_250KBPS, MCP_8MHZ) == CAN_OK) // Coryjfowler Library
   {
 #if DEBUG
     Serial.println("MCP2515 Initialized Successfully!");
 #endif
     // SeeedStudio Library
     //CAN0.setMode(MODE_NORMAL);
-    CAN0.setMode(MODE_LISTENONLY);
+    //CAN0.setMode(MODE_LISTENONLY);
     //-------------------
     // Coryjfowler Library
-    //CAN0.setMode(MCP_NORMAL);
+    CAN0.setMode(MCP_NORMAL);
     //CAN0.setMode(MCP_LISTENONLY);
   } else {
 #if DEBUG
     Serial.println("Error Initializing MCP2515...");
 #endif
   }
-
-  /*
-    http://www.savvysolutions.info/savvymicrocontrollersolutions/arduino.php?topic=arduino-seeedstudio-CAN-BUS-shield
-  */
-  //Generally, set the mask to 0xFFFFFFF and then apply filters
-  //init_Mask(unsigned char num, unsigned char ext, unsigned char ulData);
-  //CAN0.init_Mask(0, 1, 0xFFFFFFF);
-  //CAN0.init_Mask(1, 1, 0xFFFFFFF);
-
-  CAN0.init_Mask(0, 1, 0x0);
-  CAN0.init_Mask(1, 1, 0x0);
-
-  //init_Filt(unsigned char num, unsigned char ext, unsigned char ulData);
-  //filter (block) all messages using filter 0
-  //CAN0.init_Filt(0, 1, 0xFFFFFFF);
-  //CAN0.init_Mask(1, 1, 0xFFFFFFF);
-
-  CAN0.init_Filt(0, 1, 0x0);
-
-  //CAN0.init_Filt(2, 1, 0xCF00400);
-  //CAN0.init_Filt(1, 1, 0x18FEEF00);
-
-  //Generally, set the mask to 0xFFFFFFF and then apply filters
-  //to each of the messages you want to allow to pass to the CAN bus shield.
-  //
-  //Mask 0xFFFFFFF & filter 0xFFFFFFF disables all messages
-  //Mask 0xFFFFFFF & filter 0x0 disables all messages (mask disables filter)
-  //Mask 0x0 & filter 0x0 allows all messages to pass
-  //Mask 0x0 & filter 0xFFFFFFF allows msg 0xCF00400 to be received
-  //Mask 0xFFFFFFF & filter 0xCF00400 allows msg 0xCF00400 to be received
 
   //attachInterrupt(0, MCP2515_ISR, FALLING);
   //pinMode(CAN0_INT, INPUT);
@@ -720,6 +836,10 @@ StreamString CANReceive()
 {
   StreamString CANMessage;
 
+  if (CAN0.checkError()) {
+    CANMessage.println(CAN0.checkError());
+  }
+
   if (CAN0.checkReceive() == CAN_MSGAVAIL)
   {
     unsigned char len = 0;
@@ -727,37 +847,37 @@ StreamString CANReceive()
     //===================
     // SeeedStudio Library
     //===================
-    CAN0.readMsgBuf(&len, CANmsg);
-    CANmsgId = CAN0.getCanId(); //Must be called AFTER CAN0.readMsgBuff, otherwise will get the last CAN ID, not the current value.
+    //CAN0.readMsgBuf(&len, CANmsg);
+    //CANmsgId = CAN0.getCanId(); //Must be called AFTER CAN0.readMsgBuff, otherwise will get the last CAN ID, not the current value.
 
     //===================
     // Coryjfowler Library
     //===================
-    //CAN0.readMsgBuf(&CANmsgId, &len, CANmsg);
+    CAN0.readMsgBuf(&CANmsgId, &len, CANmsg);
 
-    if (CAN0.isExtendedFrame()) // SeeedStudio Library
-      //if ((CANmsgId & 0x80000000) == 0x80000000) // Coryjfowler Library
+    //if (CAN0.isExtendedFrame()) // SeeedStudio Library
+    if ((CANmsgId & 0x80000000) == 0x80000000) // Coryjfowler Library
     {
-      CANMessage.printf("Extended ID: 0x%.8lX  DLC: %1d  Data:", (CANmsgId & 0x1FFFFFFF), len);
+      CANMessage.printf("Extended ID:0x%.8lX  DLC:%1d  Data:", (CANmsgId & 0x1FFFFFFF), len);
     } else {
-      CANMessage.printf("Standard ID: 0x%.3lX  DLC: %1d  Data:", CANmsgId, len);
+      CANMessage.printf("Standard ID:0x%.3lX  DLC:%1d  Data:", CANmsgId, len);
     }
-
-    if (CAN0.isRemoteRequest()) // SeeedStudio Library
-      //if ((CANmsgId & 0x40000000) == 0x40000000) // Coryjfowler Library
-    {
+    /*
+      //if (CAN0.isRemoteRequest()) // SeeedStudio Library
+      if ((CANmsgId & 0x40000000) == 0x40000000) // Coryjfowler Library
+      {
       CANMessage.print(" REMOTE REQUEST FRAME");
-    } else {
-      for (byte i = 0; i < len; i++) {
-        //CANmsg[i] = ntohl(CANmsg[i]);
-
-        //CANMessage.printf(" %d", CANmsg[i]);
-#ifdef DEBUG
-        Serial.printf(" 0x%.2X", CANmsg[i]);
-#endif
-        CANMessage.printf(" 0x%.2X", CANmsg[i]);
-      }
+      //CANMessage.print(CANReceive()); //Try next message
+      } else {
+    */
+    for (byte i = 0; i < len; i++) {
+      //CANMessage.printf("%d", CANmsg[i]);
+      CANMessage.printf("0x%.2X ", CANmsg[i]);
     }
+#ifdef DEBUG
+    Serial.println(CANMessage);
+#endif
+    //}
 
     /*
       if (CANmsgId == 0) { // ignore.  Always receives msg with CANmsgID = 0 the first time.
@@ -767,7 +887,6 @@ StreamString CANReceive()
           int msgOffset = 0;
           float msgFactor = 0.01;
           float fReturn = getFloatFromCanMsg(0, 8, msgOffset, msgFactor);
-
       }
     */
 
@@ -777,6 +896,8 @@ StreamString CANReceive()
       updateCanMsgFromFloat(myFloatVal, 0, 16, msgOffset, msgFactor);
       CAN0.sendMsgBuf(CANmsgId, 1, 8, CANmsg);
     */
+    //} else {
+    //CANMessage.println("No CAN Message Available");
   }
   return CANMessage;
 }

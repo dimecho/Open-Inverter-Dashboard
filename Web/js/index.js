@@ -87,7 +87,6 @@ document.addEventListener("DOMContentLoaded", function(event)
     }, function(xhr) {
         console.error(xhr);
         setCookie("view", "/views/open.json", 360);
-        location.reload();
     });
 });
 
@@ -1137,37 +1136,56 @@ function renderViewBuild(g, odbc)
             if(g[i].serial != "")
             	SerialRX.push(g[i].serial);
 
-            if(g[i].canbus != "")
-            	CANBusRX.push(g[i].canbus);
-
             if(g[i].canbus != "") {
-                if(odbc != "") {
-                    var canbus = g[i].canbus;
+                if(g[i].canbus.indexOf(",") == -1 && odbc != "")
+                {
+                    var canbusId = g[i].canbus;
+                    var canbusPosition = 0;
+                    var canbusSize = 8;
+
+                    //http://socialledge.com/sjsu/index.php/DBC_Format
+
                     var split = odbc.split('\n');
                     for (x = 0; x < split.length; x++)
                     {
-                        if(split[x].indexOf(g[i].canbus) != -1)
+                        if(split[x].indexOf("SG_ " + g[i].canbus) != -1)
                         {
                             //Find CANId by looping back
                             for (id = x; id >0; id--) {
-                                if(split[id].indexOf("BO_") != -1) {
+                                if(split[id].indexOf("BO_ ") != -1) {
                                     var v = split[id].split(" ");
-                                    console.log("CANId:" + v[1]);
+                                    canbusId = v[2]; //Get the HEX value
                                     break;
                                 }
                             }
-                            //Find CANBit
+                            //Find CANBits
                             var s = split[x].split(':');
-                            var v = s[1].split(' ');
-                            console.log("CANBit:" + v[1]);
+                            var p = s[1].split(' ');
+                            var v = p[1].split('|');
+                            canbusPosition = parseInt(v[0]);
+							canbusLength = v[1].substring(0,v[1].indexOf("@"));
 
-                            canbus = g[i].canbus;
+                            console.log("CANId:" + canbusId);
+                            console.log("CANPosition:" + canbusPosition);
+                            console.log("CANSize:" + canbusSize);
+
+                            var canbusUnits = p[4].replace("\"","");
+                            if(canbusUnits != "") {
+                                g[i].units = canbusUnits;
+                                console.log("CANUnits:" + canbusUnits);
+                            }
+                            
                             break;
                         }
                     }
-                    CANBusRX.push(canbus);
+                    CANBusRX.push([canbusId,canbusPosition,canbusSize]);
                 }else{
-                    CANBusRX.push(g[i].canbus);
+                	try {
+                		var split = g[i].canbus.split(',');
+                    	CANBusRX.push([split[0],split[1],split[2]]);
+                    } catch(err) {
+					  showAlert(g[i].canbus + " " + err.message, "danger", 4000);
+					}
                 }
             }
             //console.log(JSON.stringify(g[i],null, 2));
@@ -1620,9 +1638,30 @@ function canbusAjax(parameters)
 {
 	if(parameters.length == 0)
 		return;
-    
-    for (var i = 0, l = parameters.length; i < l; i++) {
-        httpArrayStream("can/read?canid=" + parameters[i], parameters[i], 2000);
+
+    if(json.stream == "sdo") {
+        ajaxSend("can/filter?id=1409");  //0x581
+        var sdoStream = [];
+        for (var i = 0, l = parameters.length; i < l; i++) {
+            sdoStream.push(parameters[i][0]);
+        }
+        httpArrayStream("can/read?sdo=1&id=" + sdoStream.join(','), parameters, 2000);
+    }else{
+        /*
+        CanBus Mask Filters
+
+        CanBus can contain 1000's of messages.
+        Hardware filtering is faster than looping in software.
+        */
+        var canbusFilters = [];
+        for (var i = 0, l = parameters.length; i < l; i++) {
+            canbusFilters.push(parameters[i][0]);
+        }
+        ajaxSend("can/filter?id=" + canbusFilters.join(','));
+
+        for (var i = 0, l = parameters.length; i < l; i++) {
+            httpArrayStream("can/read?id=" + parameters[i][0], parameters[i], 2000);
+        }
     }
 };
 
