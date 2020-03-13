@@ -15,8 +15,12 @@
 #include <ESPAsyncWebServer.h>
 #include <flash_hal.h>
 #include <StreamString.h>
-#include <SPI.h>
-#define LED_BUILTIN 2 //GPIO1=Olimex, GPIO2=ESP-12/WeMos(D4)
+
+#ifdef ARDUINO_ESP8266_WEMOS_D1R1
+#define LED_BUILTIN 2 //GPIO2=ESP-12/WeMos(D4)
+#else
+#define LED_BUILTIN 1 //GPIO1=Olimex
+#endif
 
 #define DEBUG false
 
@@ -454,8 +458,8 @@ void setup()
   });
   server.on("/reset", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(200, text_plain, "...");
-    delay(500);
-    ESP.restart();
+    restartRequired = true;
+    //ESP.restart();
   });
   server.on("/aes", HTTP_GET, [](AsyncWebServerRequest * request) {
 
@@ -536,11 +540,8 @@ void setup()
     }
     request->send(response);
 
-    WiFi.disconnect(true);  //Erases SSID/password
-    //ESP.eraseConfig();
-
-    delay(4000);
-    ESP.restart();
+    restartRequired = true;
+    //ESP.restart();
   });
 
   server.on("/update", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -555,8 +556,9 @@ void setup()
     } else {
       AsyncWebServerResponse *response = request->beginResponse(200,  text_html, "Update Success! Rebooting...");
       response->addHeader("Refresh", "15; url=/");
-      restartRequired = true;
       request->send(response);
+
+      restartRequired = true;
       //ESP.restart();
     }
   }, WebUpload);
@@ -575,6 +577,15 @@ void setup()
     });
   */
   server.on("/serial.php", HTTP_GET, [](AsyncWebServerRequest * request) {
+
+    //NOTE: AsyncWebServer library does not allow delay or yield, but Serial.readString(); uses yield();
+
+    AsyncResponseStream *response = request->beginResponseStream(text_plain);
+    response->addHeader("Cache-Control", "no-store");
+
+    char b[255];
+    size_t len = 0;
+
     if (request->hasParam("init")) {
       Serial.end();
       Serial.begin(request->getParam("serial")->value().toInt(), SERIAL_8N1);
@@ -645,7 +656,8 @@ void setup()
       if (Serial) {
         com  += "Serial";
       }
-      request->send(200, text_plain, com);
+      response->print(com);
+      //request->send(200, text_plain, com);
 
     } else if (request->hasParam("get")) {
       String sz = request->getParam("get")->value();
@@ -659,33 +671,52 @@ void setup()
         char *str;
         while ((str = strtok_r(p, ",", &p)) != NULL) //split
         {
-          out += readSerial("get " + String(str));
+          Serial.print("get " + String(str));
+          Serial.print('\n');
+          while (Serial.read() != '\n'); //consume echo
+          do {
+            memset(b, 0, sizeof(b));
+            len = Serial.readBytes(b, sizeof(b) - 1);
+            response->printf("%s", b);
+          } while (len > 0);
         }
       } else {
-        out = readSerial("get " + sz);
+        Serial.print("get " + sz);
+        Serial.print('\n');
+        while (Serial.read() != '\n'); //consume echo
+        do {
+          memset(b, 0, sizeof(b));
+          len = Serial.readBytes(b, sizeof(b) - 1);
+          response->printf("%s", b);
+        } while (len > 0);
       }
-      request->send(200, text_plain, out);
 
     } else if (request->hasParam("command")) {
 
-      request->send(200, text_plain, readSerial(request->getParam("command")->value()));
+      //StreamString output;
+
+      Serial.print(request->getParam("command")->value());
+      Serial.print('\n');
+      while (Serial.read() != '\n'); //consume echo
+      do {
+        memset(b, 0, sizeof(b));
+        len = Serial.readBytes(b, sizeof(b) - 1);
+        //output.printf("%s",b);
+        response->printf("%s", b);
+      } while (len > 0);
+
+      //request->send(output, text_plain, output.size());
 
     } else if (request->hasParam("stream")) {
 
-      AsyncResponseStream *response = request->beginResponseStream(text_plain);
-      response->addHeader("Cache-Control", "no-store");
-      response->addHeader("Content-Length", "*");
-
-      //String output;
-      char b[255];
       uint16_t _loop = request->getParam("loop")->value().toInt();
       uint16_t _delay = request->getParam("delay")->value().toInt();
 
-      flushSerial();
+      //flushSerial();
 
       Serial.print("get " + request->getParam("stream")->value());
       Serial.print('\n');
-      Serial.readStringUntil('\n'); //consume echo
+      while (Serial.read() != '\n'); //consume echo
 
       for (uint16_t i = 0; i < _loop; i++) {
         //String output = "";
@@ -698,26 +729,21 @@ void setup()
         do {
           memset(b, 0, sizeof(b));
           len = Serial.readBytes(b, sizeof(b) - 1);
-          response->print(b);
-          //output += b;
+          response->printf("%s", b);
         } while (len > 0);
 
-        //response->print(output);
-        //Serial.println(output);
-
-        delay(_delay);
+        //delay(_delay);
       }
       request->send(response);
     } else {
       //DEBUG
       //request->send(200, text_plain, "v:8,b:8,n:8,i:8,p:10,ah:10,kwh:10,t:30*");
 
-      if (Serial.available()) {
-        request->send(200, text_plain, Serial.readStringUntil('\n'));
-      } else {
-        request->send(500);
+      while (char c = Serial.read() != '\n') {
+        response->printf("%c", c);
       }
     }
+    request->send(response);
   });
   server.on("/opendbc/index.json", HTTP_GET, [](AsyncWebServerRequest * request) {
     String ext[] = {".dbc"};
@@ -833,6 +859,9 @@ void loop()
     Serial.println("Restarting ESP");
 #endif
     restartRequired = false;
+    delay(1000);
+    WiFi.disconnect(true);  //Erases SSID/password
+    //ESP.eraseConfig();
     ESP.restart();
   }
   //server.handleClient();
@@ -1182,32 +1211,11 @@ void SnapshotUpload(AsyncWebServerRequest * request, String filename, size_t ind
 String flushSerial()
 {
   String output;
-  uint8_t timeout = 4;
+  uint8_t timeout = 8;
 
   while (Serial.available() && timeout > 0) {
-    output = Serial.readString(); //flush all previous output
+    output += Serial.read(); //Serial.readString(); //flush all previous output
     timeout--;
   }
-  return output;
-}
-
-String readSerial(String cmd)
-{
-  flushSerial();
-
-  Serial.print(cmd);
-  Serial.print('\n');
-  Serial.readStringUntil('\n'); //consume echo
-
-  String output = Serial.readString(); //Faster than binary read
-  /*
-    char b[255];
-    size_t len = 0;
-    do {
-    memset(b, 0, sizeof(b));
-    len = Serial.readBytes(b, sizeof(b) - 1);
-    output += b;
-    } while (len > 0);
-  */
   return output;
 }
