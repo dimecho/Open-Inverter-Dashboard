@@ -22,7 +22,7 @@
 #define LED_BUILTIN 1 //GPIO1=Olimex
 #endif
 
-#define DEBUG false
+//#define DEBUG false
 
 AsyncWebServer server(80);
 
@@ -46,6 +46,8 @@ char NOTIFY_EMAIL_SMTP[] = "";
 char NOTIFY_EMAIL_USERNAME[] = "";
 char NOTIFY_EMAIL_PASSWORD[] = "";
 
+File logFile;
+uint32_t syncTime = 0;
 const char text_html[] = "text/html";
 const char text_plain[] = "text/plain";
 const char text_json[] = "application/json";
@@ -106,7 +108,7 @@ bool restartRequired = false;  // Set this flag in the callbacks to restart ESP 
 
 /* WeMos D1 Pins for MCP2515: CS=D2, INT=D4, SCK=D5, SO=D6, SI=D7 */
 
-//#define CAN0_INT 2   // Set INT to pin GPIO2 (D4)
+#define DEBUG_MODE 0
 MCP_CAN CAN0(4);     // Set CS to pin GPIO4 (D2) or GPIO15 (D8)
 
 int CAN_ID_FILTERS[10];
@@ -162,8 +164,8 @@ String decrypt(char * msg, byte iv[]) {
 void setup()
 {
   Serial.begin(115200, SERIAL_8N1);
+  //Serial.setDebugOutput(false);
   //Serial.setTimeout(1000);
-  //Serial.setDebugOutput(true);
 
   //===========
   //File system
@@ -280,6 +282,12 @@ void setup()
     Serial.println(WiFi.localIP());
 #endif
   }
+
+  //===============
+  //Data Logger
+  //===============
+  if (DATA_LOG == 1)
+    logFile = SPIFFS.open("/log.txt", "a");
 
   //===============
   //Async Web Server
@@ -529,8 +537,6 @@ void setup()
     out += "\n...Rebooting";
     out += "</pre>";
 
-    //SPIFFS.remove("/data.txt"); //Clean old logs
-
     AsyncWebServerResponse *response = request->beginResponse(200,  text_html, out);
 
     if (request->hasParam("WiFiIP")) { //IP has changed
@@ -587,8 +593,6 @@ void setup()
     size_t len = 0;
 
     if (request->hasParam("init")) {
-      Serial.end();
-      Serial.begin(request->getParam("serial")->value().toInt(), SERIAL_8N1);
 
       String com = "";
       /*
@@ -654,6 +658,8 @@ void setup()
         com  += "CAN" + String(canbus_kbps_init);
       }
       if (Serial) {
+        Serial.end();
+        Serial.begin(request->getParam("serial")->value().toInt(), SERIAL_8N1);
         com  += "Serial";
       }
       response->print(com);
@@ -693,52 +699,44 @@ void setup()
 
     } else if (request->hasParam("command")) {
 
-      //StreamString output;
+      serialStreamFlush(); //flush
 
       Serial.print(request->getParam("command")->value());
       Serial.print('\n');
       while (Serial.read() != '\n'); //consume echo
-      do {
-        memset(b, 0, sizeof(b));
-        len = Serial.readBytes(b, sizeof(b) - 1);
-        //output.printf("%s",b);
-        response->printf("%s", b);
-      } while (len > 0);
 
-      //request->send(output, text_plain, output.size());
+      AsyncWebServerResponse *response = request->beginChunkedResponse(text_plain, [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+        return Serial.readBytes(buffer, maxLen);
+      });
+      response->addHeader("Cache-Control", "no-store");
+      request->send(response);
 
     } else if (request->hasParam("stream")) {
 
       uint16_t _loop = request->getParam("loop")->value().toInt();
       uint16_t _delay = request->getParam("delay")->value().toInt();
 
-      //flushSerial();
+      serialStreamFlush(); //flush
 
       Serial.print("get " + request->getParam("stream")->value());
       Serial.print('\n');
       while (Serial.read() != '\n'); //consume echo
+      while (Serial.read() != '\n'); //consume first read
 
-      for (uint16_t i = 0; i < _loop; i++) {
-        //String output = "";
-        size_t len = 0;
-        if (i != 0)
-        {
-          Serial.print('!');
-          Serial.readBytes(b, 1); //consume "!"
-        }
-        do {
-          memset(b, 0, sizeof(b));
-          len = Serial.readBytes(b, sizeof(b) - 1);
-          response->printf("%s", b);
-        } while (len > 0);
-
-        //delay(_delay);
-      }
+      AsyncWebServerResponse *response = request->beginResponse(text_plain, _loop + 1, [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+        Serial.print('!');
+        Serial.read(); //consume "!"
+        return Serial.readBytes(buffer, maxLen);
+      });
+      response->addHeader("Cache-Control", "no-store");
       request->send(response);
     } else {
       //DEBUG
       //request->send(200, text_plain, "v:8,b:8,n:8,i:8,p:10,ah:10,kwh:10,t:30*");
 
+      serialStreamFlush(); //flush
+      //Serial.print('\n');
+      
       while (char c = Serial.read() != '\n') {
         response->printf("%c", c);
       }
@@ -847,6 +845,7 @@ void setup()
     Serial.println("Error Initializing MCP2515...");
 #endif
   }
+  serialStreamFlush(); //flush
 
   //attachInterrupt(0, MCP2515_ISR, FALLING);
   //pinMode(CAN0_INT, INPUT);
@@ -864,9 +863,32 @@ void loop()
     //ESP.eraseConfig();
     ESP.restart();
   }
+
+  if (DATA_LOG == 0 || (millis() - syncTime) < LOG_INTERVAL) return;
+  syncTime = millis();
+
+  FSInfo fs_info;
+  SPIFFS.info(fs_info);
+
+  if (fs_info.usedBytes < fs_info.totalBytes)
+  {
+    if (CAN0.checkReceive() == CAN_MSGAVAIL) {
+      unsigned char len = 0;
+      //CAN0.readMsgBuf(&len, CANmsg); // SeeedStudio Library
+      CAN0.readMsgBuf(&CANmsgId, &len, CANmsg); // Coryjfowler Library
+      logFile.printf("%s", CANmsg);
+    }
+    if (Serial.available()) {
+      logFile.print(Serial.readStringUntil('\n'));
+    }
+  } else {
+    logFile.close();
+    SPIFFS.remove("/log.txt");
+  }
+
   //server.handleClient();
   //ArduinoOTA.handle();
-  yield();
+  //yield();
 }
 
 char* string2char(String command) {
@@ -908,7 +930,7 @@ StreamString CANReceive()
       {
       CANMessage.print(" REMOTE REQUEST FRAME");
       //CANMessage.print(CANReceive()); //Try next message
-      } else {
+      }
     */
     for (byte i = 0; i < len; i++) {
       //CANMessage.printf("%d", CANmsg[i]);
@@ -917,7 +939,6 @@ StreamString CANReceive()
 #ifdef DEBUG
     Serial.println(CANMessage);
 #endif
-    //}
 
     /*
       if (CANmsgId == 0) { // ignore.  Always receives msg with CANmsgID = 0 the first time.
@@ -1147,14 +1168,13 @@ String getContentType(String filename)
 //===============
 //Web OTA Updater
 //===============
-void WebUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
+void WebUpload(AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
   if (!index) {
     //Serial.print(request->params());
 
     if (filename == "flash-spiffs.bin") {
-      //if (request->hasParam("filesystem")) {
-      //SPIFFS.format();
+      //if (request->hasParam("filesystem",true)) {
       size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
 #if DEBUG
       Serial.printf("Free SPIFFS Space: %u\n", fsSize);
@@ -1205,17 +1225,15 @@ void SnapshotUpload(AsyncWebServerRequest * request, String filename, size_t ind
   fsUpload.close();
 }
 
-//===================
-// SERIAL PROCESSING
-//===================
-String flushSerial()
+void serialStreamFlush()
 {
-  String output;
-  uint8_t timeout = 8;
+  char b[255];
+  size_t len = 0;
+  uint8_t timeout = 10;
 
-  while (Serial.available() && timeout > 0) {
-    output += Serial.read(); //Serial.readString(); //flush all previous output
+  do {
+    memset(b, 0, sizeof(b));
+    len = Serial.readBytes(b, sizeof(b) - 1);
     timeout--;
-  }
-  return output;
+  } while (len > 0 && timeout > 0);
 }
