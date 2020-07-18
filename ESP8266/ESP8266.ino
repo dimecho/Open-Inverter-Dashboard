@@ -2,12 +2,10 @@
 #ifdef ESP32
 #include <WiFi.h>
 #include <AsyncTCP.h>
-#include <SPIFFS.h>
 #include <Update.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
-#include <FS.h>
 #endif
 
 #include <EEPROM.h>
@@ -15,11 +13,12 @@
 #include <ESPAsyncWebServer.h>
 #include <flash_hal.h>
 #include <StreamString.h>
+#include <LittleFS.h>
 
-#ifdef ARDUINO_ESP8266_WEMOS_D1R1
-#define LED_BUILTIN 2 //GPIO2=ESP-12/WeMos(D4)
-#else
+#ifdef ARDUINO_MOD_WIFI_ESP8266
 #define LED_BUILTIN 1 //GPIO1=Olimex
+#else
+#define LED_BUILTIN 2 //GPIO2=ESP-12/WeMos(D4)
 #endif
 
 //#define DEBUG false
@@ -34,7 +33,7 @@ char ACCESS_POINT_PASSWORD[] = "dashboard123";
 int ACCESS_POINT_CHANNEL = 11;
 int ACCESS_POINT_HIDE = 0;
 int DATA_LOG = 0; //Enable data logger
-int LOG_INTERVAL = 5; //seconds between data collection and write to SPIFFS
+int LOG_INTERVAL = 5; //seconds between data collection and write to LittleFS
 int NETWORK_DHCP = 0;
 char NETWORK_IP[] = "192.168.4.1";
 char NETWORK_SUBNET[] = "255.255.255.0";
@@ -66,7 +65,7 @@ static const char serverIndex[] PROGMEM =
 <br>
 <form method='POST' action='' enctype='multipart/form-data'>
    <input type='file' accept='.bin' name='filesystem'>
-   <input type='submit' value='Update Spiffs'>
+   <input type='submit' value='Update Filesystem'>
 </form>
 </body>
 </html>)";
@@ -170,16 +169,16 @@ void setup()
   //===========
   //File system
   //===========
-  SPIFFS.begin();
+  LittleFS.begin();
 
   //======================
   //NVRAM type of Settings
   //======================
   EEPROM.begin(1024);
-  int e = EEPROM.read(0);
+  uint8_t e = EEPROM.read(0);
   String nvram = "";
 
-  if (e == 255) { //if (NVRAM_Read(0) == "") {
+  if (e != 48 && e != 49) {
     //aes_init(); //Generate random IV
     NVRAM_Erase();
     NVRAM_Write(0, String(ACCESS_POINT_MODE));
@@ -203,7 +202,7 @@ void setup()
     nvram = encrypt(NOTIFY_EMAIL_PASSWORD, aes_iv); //Serial.println(nvram); //DEBUG
     NVRAM_Write(16, nvram);
 
-    SPIFFS.format();
+    LittleFS.format();
   } else {
     ACCESS_POINT_MODE = NVRAM_Read(0).toInt();
     ACCESS_POINT_HIDE = NVRAM_Read(1).toInt();
@@ -287,7 +286,7 @@ void setup()
   //Data Logger
   //===============
   if (DATA_LOG == 1)
-    logFile = SPIFFS.open("/log.txt", "a");
+    logFile = LittleFS.open("/log.txt", "a");
 
   //===============
   //Async Web Server
@@ -459,10 +458,10 @@ void setup()
     });
   */
   server.on("/format", HTTP_GET, [](AsyncWebServerRequest * request) {
-    String result = SPIFFS.format() ? "OK" : "Error";
+    String result = LittleFS.format() ? "OK" : "Error";
     FSInfo fs_info;
-    SPIFFS.info(fs_info);
-    request->send(200, text_plain, "<b>Format " + result + "</b><br/>Total Flash Size: " + String(ESP.getFlashChipSize()) + "<br>SPIFFS Size: " + String(fs_info.totalBytes) + "<br>SPIFFS Used: " + String(fs_info.usedBytes));
+    LittleFS.info(fs_info);
+    request->send(200, text_plain, "<b>Format " + result + "</b><br/>Total Flash Size: " + String(ESP.getFlashChipSize()) + "<br>LittleFS Size: " + String(fs_info.totalBytes) + "<br>LittleFS Used: " + String(fs_info.usedBytes));
   });
   server.on("/reset", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(200, text_plain, "...");
@@ -749,9 +748,9 @@ void setup()
     request->send(200, text_json, out);
   });
   server.on("/opendbc/delete", HTTP_GET, [](AsyncWebServerRequest * request) {
-    SPIFFS.remove("/opendbc/" + request->getParam("file")->value());
+    LittleFS.remove("/opendbc/" + request->getParam("file")->value());
 
-    AsyncWebServerResponse *response = request->beginResponse(200, text_html, request->getParam("file")->value() + " file deleted from SPIFFS");
+    AsyncWebServerResponse *response = request->beginResponse(200, text_html, request->getParam("file")->value() + " file deleted from LittleFS");
     response->addHeader("Refresh", "3; url=/index.html");
     request->send(response);
   });
@@ -767,23 +766,23 @@ void setup()
   });
   server.on("/views/save.php", HTTP_POST, [](AsyncWebServerRequest * request) {
 
-    File file = SPIFFS.open("/views/" + request->getParam("view")->value(), "w");
+    File file = LittleFS.open("/views/" + request->getParam("view")->value(), "w");
     file.print(request->getParam("json")->value());
     file.close();
     request->send(200, text_plain, "");
   });
 
   server.on("/", [](AsyncWebServerRequest * request) {
-    if (SPIFFS.exists("/index.html")) {
+    if (LittleFS.exists("/index.html")) {
       request->redirect("/index.html");
     } else {
-      AsyncWebServerResponse *response = request->beginResponse(200, text_html, "File System Not Found ...Upload SPIFFS");
+      AsyncWebServerResponse *response = request->beginResponse(200, text_html, "File System Not Found ...");
       response->addHeader("Refresh", "6; url=/update");
       request->send(response);
     }
   });
 
-  //server.serveStatic("/", SPIFFS, "/").setDefaultFile("index.html");
+  //server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
   server.onNotFound([](AsyncWebServerRequest * request) {
     //Serial.println((request->method() == HTTP_GET) ? "GET" : "POST");
 
@@ -791,11 +790,11 @@ void setup()
 
     digitalWrite(LED_BUILTIN, HIGH);
 
-    if (SPIFFS.exists(file))
+    if (LittleFS.exists(file))
     {
       String contentType = getContentType(file);
 
-      AsyncWebServerResponse *response = request->beginResponse(SPIFFS, file, contentType, request->hasParam("download"));
+      AsyncWebServerResponse *response = request->beginResponse(LittleFS, file, contentType, request->hasParam("download"));
 
       if (contentType != text_json) {
         response->addHeader("Content-Encoding", "gzip");
@@ -868,7 +867,7 @@ void loop()
   syncTime = millis();
 
   FSInfo fs_info;
-  SPIFFS.info(fs_info);
+  LittleFS.info(fs_info);
 
   if (fs_info.usedBytes < fs_info.totalBytes)
   {
@@ -883,7 +882,7 @@ void loop()
     }
   } else {
     logFile.close();
-    SPIFFS.remove("/log.txt");
+    LittleFS.remove("/log.txt");
   }
 
   //server.handleClient();
@@ -1132,7 +1131,7 @@ String indexJSON(String dir, String ext[])
 {
   String out = "{\n\t\"index\": [\n";
 
-  Dir files = SPIFFS.openDir(dir);
+  Dir files = LittleFS.openDir(dir);
   while (files.next()) {
     for (int i = 0; i < sizeof(ext); i++) {
       if (files.fileName().endsWith(ext[i])) {
@@ -1173,12 +1172,12 @@ void WebUpload(AsyncWebServerRequest * request, String filename, size_t index, u
   if (!index) {
     //Serial.print(request->params());
 
-    if (filename == "flash-spiffs.bin") {
+    if (filename == "flash-littlefs.bin") {
       //if (request->hasParam("filesystem",true)) {
       size_t fsSize = ((size_t) &_FS_end - (size_t) &_FS_start);
 #if DEBUG
-      Serial.printf("Free SPIFFS Space: %u\n", fsSize);
-      Serial.printf("SPIFFS Flash Offset: %u\n", U_FS);
+      Serial.printf("Free LittleFS Space: %u\n", fsSize);
+      Serial.printf("LittleFS Flash Offset: %u\n", U_FS);
 #endif
       close_all_fs();
       if (!Update.begin(fsSize, U_FS)) { //start with max available size
@@ -1217,10 +1216,10 @@ void SnapshotUpload(AsyncWebServerRequest * request, String filename, size_t ind
   }
 
   if (!index) {
-    SPIFFS.remove(uploadPath);
+    LittleFS.remove(uploadPath);
   }
 
-  File fsUpload = SPIFFS.open(uploadPath, "a");
+  File fsUpload = LittleFS.open(uploadPath, "a");
   fsUpload.write(data, len);
   fsUpload.close();
 }

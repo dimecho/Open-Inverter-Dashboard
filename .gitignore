@@ -1,4 +1,4 @@
 .DS_Store
 *.bin
-ESP8266/spiffs/*
+ESP8266/data/*
 ESP8266/tools/*
